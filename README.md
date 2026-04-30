@@ -60,7 +60,7 @@ PLAYWRIGHT-E2E-TESTS/
 ├── README.md                   # Project overview and instructions
 ```
 
-# Git Installation Guide for macOS
+# 4. Git Installation Guide for macOS
 
 Follow these steps to install Git on macOS:
 
@@ -113,3 +113,21 @@ git --version
 You should see the installed Git version.
 
 ---
+# 5. Creating a basic test
+
+[💡] Playwright recognizes the following file extensions as valid test specification files:
+  - `*.spec.ts`
+  - `*.test.ts`
+
+  __STEPS__:
+
+1. Create a spec file `first-test.spec.ts` under the `./demo` folder
+2. Add the following test code:
+
+**Writing first Test**
+1. Target web App: https://katalon-demo-cura.herokuapp.com/
+2. Steps:
+    1. Go to the home page
+    2. Assert if the title is correct
+    3. Assert header text
+3. Done! 
