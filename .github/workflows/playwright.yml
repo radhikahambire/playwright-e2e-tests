@@ -10,11 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
 
@@ -27,8 +25,16 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Run tests
-        run: |
-          npm run test:make-apt || true
+        run: npm run test:make-apt || true
+
+      - name: Generate Allure Report
+        run: npm run allure:generate || true
+
+      - name: Upload Allure Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report
 
       - name: Detect failures
         id: detect

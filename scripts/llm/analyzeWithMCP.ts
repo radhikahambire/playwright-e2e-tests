@@ -8,10 +8,7 @@ interface Failure {
 
 interface LLMResponse {
   summary: string;
-  fixes: Array<{
-    file: string;
-    patch: string;
-  }>;
+  fixes: Array<{ file: string; patch: string }>;
   confidence: number;
 }
 
@@ -71,16 +68,15 @@ Failures:
 ${JSON.stringify(failures.slice(0, 10), null, 2)}
 
 Tasks:
-1. Group related failures
-2. Use MCP to inspect DOM
-3. Prefer fixing page objects (pages/)
-4. Use testIds
-5. Generate minimal patches
+- Group related failures
+- Prefer fixing page objects (pages/)
+- Use testIds
+- Generate minimal patches
 
 Rules:
-- Do NOT weaken assertions
-- Do NOT add timeouts
 - Do NOT skip tests
+- Do NOT add waitForTimeout
+- Do NOT weaken assertions
 
 Return STRICT JSON:
 {

@@ -5,8 +5,9 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "strict": false,
-    "noImplicitAny": false
+    "noImplicitAny": false,
+    "outDir": "dist"
   },
   "include": ["tests/**/*.ts", "data/**/*.ts", "playwright.config.ts"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules"]
 }

@@ -1,0 +1,177 @@
+[dotenv@17.2.3] injecting env (5) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+Hello from config 👋
+---LOADING TEST ENV SETTINGS---
+[INFO]: Starting the global setup...
+[INFO]: Detecting local runs..
+>> resultsDir: /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/allure-results
+[INFO]: Completed the global setup...
+[INFO]: Starting the global teardown process ...
+ >> Local run detected - starting Allure server...
+[INFO]: Completed the global teardown process ...
+{
+  "config": {
+    "configFile": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/config/test.playwright.config.ts",
+    "rootDir": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/helpers/global-setup.ts",
+    "globalTeardown": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/helpers/global-teardown.ts",
+    "globalTimeout": 10800000,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.59.1",
+    "workers": 5,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "functional/make.aptmnt.spec.ts",
+      "file": "functional/make.aptmnt.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Make Appointment",
+          "file": "functional/make.aptmnt.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Should make an appointment with non-default values",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30235,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded while running \"beforeEach\" hook.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded while running \"beforeEach\" hook.\u001b[39m\n    at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:5:10",
+                        "location": {
+                          "file": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts",
+                          "column": 10,
+                          "line": 5
+                        },
+                        "snippet": "  3 |\n  4 | test.describe(\"Make Appointment\", () => {\n> 5 |     test.beforeEach(\"Login with valid creds\", async ({ page }, testInfo) => {\n    |          ^\n  6 |         // 1. Launch URL and assert title and header\n  7 |\n  8 |         // Get the URL from config file"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts",
+                            "column": 10,
+                            "line": 5
+                          },
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded while running \"beforeEach\" hook.\u001b[39m\n\n  3 |\n  4 | test.describe(\"Make Appointment\", () => {\n> 5 |     test.beforeEach(\"Login with valid creds\", async ({ page }, testInfo) => {\n    |          ^\n  6 |         // 1. Launch URL and assert title and header\n  7 |\n  8 |         // Get the URL from config file\n    at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:5:10"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts",
+                            "column": 59,
+                            "line": 25
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Logan' })\u001b[22m\n\n\n  23 |         await page.getByLabel(\"Username\").fill(process.env.TEST_USER_NAME);\n  24 |         await page.getByLabel(\"Password\").fill(process.env.TEST_PASSWORD);\n> 25 |         await page.getByRole(\"button\", { name: \"Logan\" }).click();\n     |                                                           ^\n  26 |\n  27 |         // Assert a text\n  28 |         await expect(page.locator(\"h2\")).toContainText(\"Make Appointment\");\n    at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:25:59"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "\u001b[34m[INFO]: Launching the web app in test\u001b[39m\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-06T12:45:47.662Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/test-results/functional-make.aptmnt-Mak-c16ad-ent-with-non-default-values-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/test-results/functional-make.aptmnt-Mak-c16ad-ent-with-non-default-values-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/test-results/functional-make.aptmnt-Mak-c16ad-ent-with-non-default-values-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts",
+                        "column": 10,
+                        "line": 5
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "9614425fe16e174abf3f-1036233aa3d82fcca43a",
+              "file": "functional/make.aptmnt.spec.ts",
+              "line": 33,
+              "column": 9
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-05-06T12:45:47.474Z",
+    "duration": 31050.757999999998,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}
