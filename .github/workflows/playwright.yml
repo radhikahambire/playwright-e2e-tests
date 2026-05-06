@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUNNER: ${{ secrets.RUNNER }}
-      TEST_USER_NAME: ${{ secrets.TEST_USER_USERNAME }}
+      TEST_USER_NAME: ${{ secrets.TEST_USER_NAME }}
       TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
