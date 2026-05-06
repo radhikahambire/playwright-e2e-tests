@@ -1,13 +1,79 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, devices } from "@playwright/test";
+import constants from "../../data/constants.json";
+import { log } from "../helpers/logger.js";
 
-test("Should load home page with correct title", async ({page})=>{
+test("Should load homepage with correct title", async ({ page }) => {
     // 1. Go to the home page
-    await page.goto("https://katalon-demo-cura.herokuapp.com/")
+    await page.goto("https://katalon-demo-cura.herokuapp.com/");
+
     // 2. Assert if the title is correct
-    await expect(page).toHaveTitle("CURA Healthcare Service")
+    await expect(page).toHaveTitle("CURA Healthcare Service");
+
     // 3. Assert header text
-    await expect(page.locator("//h1")).toHaveText("CURA Healthcare Service")
-})
-test("locator ", async ()=>{
+    await expect(page.locator("//h1")).toHaveText("CURA Healthcare Service");
+});
+
+test("Should do something", { tag: "@smoke" }, async ({ page }, testInfo) => {
+    // steps..
+    await page.locator("//h1").click();
+});
+
+test("Should demo locators", async ({ page }) => {
+    // ✅ `page.getBy*()` and `page.locator()` methods returns the `locator` object
+    // ✅ The above methods not to be `awaited`
+    // ✅ The type of locator is an `object`
+    // ✅ Locators are LAZY until an action is fired on them
+
+    // 1. Launch URL
+    await page.goto("https://katalon-demo-cura.herokuapp.com/");
+
+    // 2. Click on the Make Appointment
+    let makeAppmtBtn = page.getByRole("link", { name: "Invalid Locator" });
+    // console.log(`>> The type of locator: ${typeof makeAppmtBtn}, The value of the locator is: ${JSON.stringify(makeAppmtBtn)}`);
+    await makeAppmtBtn.click();
+    // await expect(page.getByText("Please login to make")).toBeVisible();
+
+    // await page.getByRole('heading', { name: 'We Care About Your Health' }).click()
+});
+
+test("Should demo config file", async ({ page }, testInfo) => {
+    console.log(`>> Config at run-time: ${JSON.stringify(testInfo.config)}`);
+});
+
+test("Should demo fixtures", async ({ request }, testInfo) => {
+    // console.log(`>> The test runs on ${browserName}`);
+});
+
+test("Should demo devices", async ({ page }, testInfo) => {
+    console.log(`>> The list of devies: ${Object.keys(devices)}`);
+});
+
+test("Should demo parallel run 1", { tag: "@demo" }, async ({ page }, testInfo) => {
+    await page.goto("https://www.google.com");
+});
+
+test("Should demo parallel run 2", { tag: "@demo" }, async ({ page }, testInfo) => {
+    await page.goto("https://www.google.com");
+});
+
+test("Should demo constants data", async ({ page }, testInfo) => {
+    console.log(`>> Constants data: ${JSON.stringify(constants.STATUSCODES)}`);
+});
+
+test.only("Should demo a click action", async ({ page }, testInfo) => {
+    // Default action
+   //  await page.goto("https://katalon-demo-cura.herokuapp.com/");
+    let ele = page.getByRole("link", { name: "Make-Appointment" });
+    // await ele.click();
+
+    // Base page action
+    await page.goto("https://katalon-demo-cura.herokuapp.com/");
     
-})
+    try {
+        await expect(ele).toBeVisible({ timeout: 10_000 }); // Custom timeout: Default - 5 seconds
+        await ele.click();
+    } catch (error) {
+        await log("error", `Failed to click element: ${ele.toString()}, original error: ${error}`);
+        throw error;
+    }
+});
