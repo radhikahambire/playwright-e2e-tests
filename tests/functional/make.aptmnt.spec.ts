@@ -22,7 +22,7 @@ test.describe("Make Appointment", () => {
         // Successful login
         await page.getByLabel("Username").fill(process.env.TEST_USER_NAME);
         await page.getByLabel("Password").fill(process.env.TEST_PASSWORD);
-        await page.getByRole("button", { name: "Login" }).click();
+        await page.getByRole("button", { name: "Logan" }).click();
 
         // Assert a text
         await expect(page.locator("h2")).toContainText("Make Appointment");
