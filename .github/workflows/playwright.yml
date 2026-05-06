@@ -20,7 +20,7 @@ jobs:
 
       - name: Install deps
         run: |
-          npm ci
+          npm install
           npm install -D ts-node typescript @types/node
 
       - name: Install Playwright
