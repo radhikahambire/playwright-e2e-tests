@@ -59,7 +59,7 @@ export const baseConfig = defineConfig({
     ignoreHTTPSErrors: true,
     navigationTimeout: 30_000,
     screenshot: "on",
-    // video: "retain-on-failure",
+    video: "retain-on-failure",
     // actionTimeout: 10_000,
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   },

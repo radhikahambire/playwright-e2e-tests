@@ -1,49 +1,80 @@
-name: Playwright Tests
+name: Playwright MCP AI Self-Healing
+
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+
 jobs:
-  test:
-    timeout-minutes: 60
+  test-and-fix:
     runs-on: ubuntu-latest
-    env:
-      RUNNER: ${{ secrets.RUNNER }}
-      TEST_USER_NAME: ${{ secrets.TEST_USER_NAME }}
-      TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: lts/*
-      - name: Install dependencies
-        run: npm install
-      - name: Install Playwright Browsers
+          node-version: 18
+
+      - name: Install deps
+        run: |
+          npm ci
+          npm install -D ts-node typescript @types/node
+
+      - name: Install Playwright
         run: npx playwright install --with-deps
-      - name: Run Playwright tests
-        run: npm run test:make-apt
-      - name: Install Allure CLI
-        if: ${{ !cancelled() }}
-        run: npm install -g allure-commandline
-      - name: Generate Allure Report
-        if: ${{ !cancelled() }}
-        run: allure generate allure-results -o allure-report
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: allure-results
-          path: allure-results/
-          retention-days: 30
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: allure-report
-          path: allure-report/
-          retention-days: 30
+
+      - name: Run tests
+        run: |
+          npm run test:make-apt || true
+
+      - name: Detect failures
+        id: detect
+        run: |
+          if grep -q '"status":"failed"' results.json; then
+            echo "failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "failed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Start MCP
+        if: steps.detect.outputs.failed == 'true'
+        run: |
+          npx @playwright/mcp@latest &
+          sleep 5
+
+      - name: Analyze failures
+        if: steps.detect.outputs.failed == 'true'
+        run: npm run ai:analyze
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Apply fixes
+        if: steps.detect.outputs.failed == 'true'
+        run: |
+          git checkout -b ai-fix-${{ github.run_id }}
+          npm run ai:apply
+
+      - name: Validate fixes
+        if: steps.detect.outputs.failed == 'true'
+        run: |
+          for i in 1 2 3; do
+            npx playwright test || exit 1
+          done
+
+      - name: Create PR
+        if: steps.detect.outputs.failed == 'true'
+        run: |
+          git config user.name "ai-bot"
+          git config user.email "ai@bot.com"
+          git add .
+          git commit -m "AI Fix: Playwright failures" || exit 0
+          git push origin HEAD
+
+          gh pr create \
+            --title "AI Fix: Playwright failures" \
+            --body "Auto-generated fixes using MCP + OpenAI"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
