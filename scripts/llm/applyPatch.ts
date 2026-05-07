@@ -119,7 +119,9 @@ function applyFix(
 async function main() {
   try {
     if (
-      !fs.existsSync("llm-output.json")
+      !fs.existsSync(
+        "llm-output.json"
+      )
     ) {
       throw new Error(
         "llm-output.json missing"

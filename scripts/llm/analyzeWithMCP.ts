@@ -25,13 +25,18 @@ interface LLMResponse {
   fixes: LocatorFix[];
 }
 
-function safeReadFile(filePath: string): string {
+function safeReadFile(
+  filePath: string
+): string {
   try {
     if (!fs.existsSync(filePath)) {
       return "";
     }
 
-    return fs.readFileSync(filePath, "utf-8");
+    return fs.readFileSync(
+      filePath,
+      "utf-8"
+    );
   } catch {
     return "";
   }
@@ -48,7 +53,8 @@ function extractLocator(
   ];
 
   for (const pattern of patterns) {
-    const match = errorMessage.match(pattern);
+    const match =
+      errorMessage.match(pattern);
 
     if (match?.[1]) {
       return match[1];
@@ -58,10 +64,36 @@ function extractLocator(
   return undefined;
 }
 
+function loadDOMSnapshot(): string {
+  const resultsDir =
+    "test-results";
+
+  if (!fs.existsSync(resultsDir)) {
+    return "";
+  }
+
+  const files =
+    fs.readdirSync(resultsDir);
+
+  const domFile = files.find(
+    (file) =>
+      file.endsWith("-dom.html")
+  );
+
+  if (!domFile) {
+    return "";
+  }
+
+  return safeReadFile(
+    path.join(resultsDir, domFile)
+  );
+}
+
 function extractDOMLocators(
   dom: string
 ): string[] {
-  const selectors = new Set<string>();
+  const selectors =
+    new Set<string>();
 
   const regexes = [
     /data-testid=["']([^"']+)["']/g,
@@ -72,7 +104,10 @@ function extractDOMLocators(
   for (const regex of regexes) {
     let match;
 
-    while ((match = regex.exec(dom)) !== null) {
+    while (
+      (match = regex.exec(dom)) !==
+      null
+    ) {
       if (match[1]) {
         selectors.add(match[1]);
       }
@@ -80,21 +115,6 @@ function extractDOMLocators(
   }
 
   return [...selectors];
-}
-
-function loadDOMSnapshot(): string {
-  const possibleFiles = [
-    "playwright-report/index.html",
-    "dom-snapshot.html",
-  ];
-
-  for (const file of possibleFiles) {
-    if (fs.existsSync(file)) {
-      return safeReadFile(file);
-    }
-  }
-
-  return "";
 }
 
 function findPageObjectFiles(
@@ -124,17 +144,25 @@ function extractFailures(
 ): Failure[] {
   const failures: Failure[] = [];
 
-  const walkSuites = (suites: any[]) => {
+  const walkSuites = (
+    suites: any[]
+  ) => {
     for (const suite of suites || []) {
       for (const spec of suite.specs || []) {
         for (const test of spec.tests || []) {
           for (const result of test.results || []) {
-            if (result.status === "failed") {
+            if (
+              result.status ===
+              "failed"
+            ) {
               const filePath =
-                test.location?.file || "";
+                test.location?.file ||
+                "";
 
               const testCode =
-                safeReadFile(filePath);
+                safeReadFile(
+                  filePath
+                );
 
               const pageObjectFiles =
                 findPageObjectFiles(
@@ -147,17 +175,23 @@ function extractFailures(
               > = {};
 
               for (const poFile of pageObjectFiles) {
-                let resolvedPath = poFile;
+                let resolvedPath =
+                  poFile;
 
                 if (
-                  !resolvedPath.endsWith(".ts")
+                  !resolvedPath.endsWith(
+                    ".ts"
+                  )
                 ) {
-                  resolvedPath += ".ts";
+                  resolvedPath +=
+                    ".ts";
                 }
 
                 const absolutePath =
                   path.resolve(
-                    path.dirname(filePath),
+                    path.dirname(
+                      filePath
+                    ),
                     resolvedPath
                   );
 
@@ -171,7 +205,8 @@ function extractFailures(
 
               const locator =
                 extractLocator(
-                  result.error?.message ||
+                  result.error
+                    ?.message ||
                     ""
                 );
 
@@ -184,7 +219,8 @@ function extractFailures(
                 );
 
               failures.push({
-                testName: test.title,
+                testName:
+                  test.title,
                 file: filePath,
                 error:
                   result.error
@@ -201,7 +237,9 @@ function extractFailures(
       }
 
       if (suite.suites?.length) {
-        walkSuites(suite.suites);
+        walkSuites(
+          suite.suites
+        );
       }
     }
   };
@@ -217,18 +255,16 @@ function buildPrompt(
   return `
 You are a Playwright locator healing engine.
 
-Your task:
 Fix broken Playwright locators.
 
 IMPORTANT:
-Return ONLY locator replacements.
-
-DO NOT rewrite full files.
+- Return ONLY locator replacements
+- Do NOT rewrite full files
+- Prefer page object fixes
+- Prefer getByTestId
 
 STRICT RULES:
 - Only modify tests/ or pages/
-- Prefer page object fixes
-- Prefer getByTestId
 - Never use:
   - nth-child
   - querySelector
@@ -253,7 +289,11 @@ Return ONLY valid JSON:
 }
 
 Failures:
-${JSON.stringify(failures, null, 2)}
+${JSON.stringify(
+  failures,
+  null,
+  2
+)}
 `;
 }
 
@@ -331,15 +371,11 @@ async function callOpenAI(
 
 async function main() {
   try {
-    console.log(
-      "Analyzing Playwright failures..."
-    );
-
     if (
       !fs.existsSync("results.json")
     ) {
       throw new Error(
-        "results.json not found"
+        "results.json missing"
       );
     }
 
