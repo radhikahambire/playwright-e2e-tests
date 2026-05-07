@@ -110,7 +110,7 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "failed",
-                      "duration": 393,
+                      "duration": 313,
                       "error": {
                         "message": "Error: page.goto: url: expected string, got undefined",
                         "stack": "Error: page.goto: url: expected string, got undefined\n    at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:14:20",
@@ -138,7 +138,7 @@
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-07T04:19:42.315Z",
+                      "startTime": "2026-05-07T04:37:21.362Z",
                       "annotations": [],
                       "attachments": [
                         {
@@ -184,8 +184,8 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-05-07T04:19:42.106Z",
-    "duration": 2331.283,
+    "startTime": "2026-05-07T04:37:21.169Z",
+    "duration": 847.0450000000001,
     "expected": 0,
     "skipped": 0,
     "unexpected": 1,

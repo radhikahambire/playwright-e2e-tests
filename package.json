@@ -24,7 +24,7 @@
     "login": "npx playwright test tests/functional/login.spec.ts --headed",
     "demo": "npx playwright test tests/demo/mytest.spec.ts --headed",
     "multi-window": "npx playwright test tests/functional/multi.window.spec.ts --headed",
-    "test:make-apt": "npx playwright test tests/functional/make.aptmnt.spec.ts --headed",
+    "test:make-apt": "npx playwright test --config=config/test.playwright.config.ts tests/functional/make.aptmnt.spec.ts",
     "analyze": "tsx scripts/analyzeWithMCP.ts",
     "apply": "tsx scripts/applyPatch.ts",
     "validate": "tsx scripts/validateFixes.ts",

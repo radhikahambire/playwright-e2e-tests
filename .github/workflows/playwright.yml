@@ -47,12 +47,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       ######################################################################
       # Install Dependencies
       ######################################################################
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       ######################################################################
       # Install Playwright Browsers
@@ -83,7 +84,9 @@ jobs:
         id: initial_test
         continue-on-error: true
         run: |
+          echo "======================================="
           echo "Running Playwright tests..."
+          echo "======================================="
 
           npm run test:make-apt
 
@@ -130,9 +133,13 @@ jobs:
         if: always()
         run: |
           if [ -d "allure-results" ]; then
+            echo "Generating Allure report..."
+
             allure generate allure-results \
               --clean \
               -o allure-report
+          else
+            echo "allure-results directory not found"
           fi
 
       ######################################################################
@@ -154,7 +161,9 @@ jobs:
         id: detect_failures
         shell: bash
         run: |
-          echo "Checking Playwright results..."
+          echo "======================================="
+          echo "Checking Playwright JSON results..."
+          echo "======================================="
 
           if [ ! -f results.json ]; then
             echo "results.json not found"
@@ -175,7 +184,9 @@ jobs:
               for (const suite of suites || []) {
 
                 for (const spec of suite.specs || []) {
+
                   for (const test of spec.tests || []) {
+
                     for (const result of test.results || []) {
 
                       if (result.status === 'failed') {
@@ -183,10 +194,12 @@ jobs:
                       }
 
                     }
+
                   }
+
                 }
 
-                if (suite.suites) {
+                if (suite.suites?.length) {
                   walkSuites(suite.suites);
                 }
               }
@@ -204,8 +217,33 @@ jobs:
             echo "Playwright failures detected"
           else
             echo "failed=false" >> $GITHUB_OUTPUT
-            echo "No failures detected"
+            echo "No Playwright failures detected"
           fi
+
+      ######################################################################
+      # Validate Playwright JSON
+      ######################################################################
+      - name: Validate Playwright JSON Report
+        if: steps.detect_failures.outputs.failed == 'true'
+        run: |
+          echo "======================================="
+          echo "Validating results.json..."
+          echo "======================================="
+
+          if [ ! -f results.json ]; then
+            echo "results.json missing"
+            exit 1
+          fi
+
+          node -e "
+            const fs = require('fs');
+
+            const raw = fs.readFileSync('results.json', 'utf8');
+
+            JSON.parse(raw);
+
+            console.log('results.json is valid');
+          "
 
       ######################################################################
       # Upload Runtime State
@@ -217,8 +255,10 @@ jobs:
           name: runtime-state
           path: |
             results.json
-            playwright-report
-            allure-results
+            playwright-report/
+            allure-results/
+            allure-report/
+          retention-days: 7
           if-no-files-found: ignore
 
       ######################################################################
@@ -227,7 +267,9 @@ jobs:
       - name: Start Playwright MCP Server
         if: steps.detect_failures.outputs.failed == 'true'
         run: |
-          echo "Starting MCP server..."
+          echo "======================================="
+          echo "Starting Playwright MCP Server..."
+          echo "======================================="
 
           npx @playwright/mcp@latest > mcp.log 2>&1 &
 
@@ -235,7 +277,7 @@ jobs:
 
           sleep 10
 
-          echo "MCP server started"
+          echo "MCP Server Started"
 
       ######################################################################
       # Upload MCP Logs
@@ -250,12 +292,14 @@ jobs:
           if-no-files-found: ignore
 
       ######################################################################
-      # Analyze Failures with AI
+      # Analyze Failures with OpenAI
       ######################################################################
       - name: Analyze Failures with OpenAI
         if: steps.detect_failures.outputs.failed == 'true'
         run: |
-          echo "Running AI failure analysis..."
+          echo "======================================="
+          echo "Running AI Failure Analysis..."
+          echo "======================================="
 
           npx tsx scripts/analyzeWithMCP.ts
 
@@ -279,7 +323,9 @@ jobs:
       - name: Apply AI Fixes
         if: steps.detect_failures.outputs.failed == 'true'
         run: |
-          echo "Applying AI-generated patches..."
+          echo "======================================="
+          echo "Applying AI-generated fixes..."
+          echo "======================================="
 
           npx tsx scripts/applyPatch.ts
 
@@ -290,7 +336,9 @@ jobs:
         if: steps.detect_failures.outputs.failed == 'true'
         shell: bash
         run: |
+          echo "======================================="
           echo "Checking modified files..."
+          echo "======================================="
 
           git diff --name-only > changed-files.txt
 
@@ -299,7 +347,7 @@ jobs:
           INVALID_FILES=$(grep -Ev '^(tests/|pages/)' changed-files.txt || true)
 
           if [ ! -z "$INVALID_FILES" ]; then
-            echo "Unauthorized file modification detected"
+            echo "Unauthorized file modifications detected"
 
             echo "$INVALID_FILES"
 
@@ -313,7 +361,9 @@ jobs:
         if: steps.detect_failures.outputs.failed == 'true'
         continue-on-error: true
         run: |
-          echo "Validation run 1"
+          echo "======================================="
+          echo "Validation Run 1"
+          echo "======================================="
 
           npm run test:make-apt
 
@@ -324,7 +374,9 @@ jobs:
         if: steps.detect_failures.outputs.failed == 'true'
         continue-on-error: true
         run: |
-          echo "Validation run 2"
+          echo "======================================="
+          echo "Validation Run 2"
+          echo "======================================="
 
           npm run test:make-apt
 
@@ -335,16 +387,22 @@ jobs:
         if: steps.detect_failures.outputs.failed == 'true'
         continue-on-error: true
         run: |
-          echo "Validation run 3"
+          echo "======================================="
+          echo "Validation Run 3"
+          echo "======================================="
 
           npm run test:make-apt
 
       ######################################################################
-      # Validate Final Results
+      # Final Validation
       ######################################################################
       - name: Check Validation Results
         if: steps.detect_failures.outputs.failed == 'true'
         run: |
+          echo "======================================="
+          echo "Running Final Validation..."
+          echo "======================================="
+
           npx tsx scripts/validateFixes.ts
 
       ######################################################################
@@ -355,6 +413,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          echo "======================================="
+          echo "Creating Pull Request..."
+          echo "======================================="
+
           npx tsx scripts/createPR.ts
 
       ######################################################################
@@ -363,9 +425,11 @@ jobs:
       - name: Stop MCP Server
         if: always()
         run: |
-          if [ -f mcp.pid ]; then
-            echo "Stopping MCP server"
+          echo "======================================="
+          echo "Stopping MCP Server..."
+          echo "======================================="
 
+          if [ -f mcp.pid ]; then
             kill $(cat mcp.pid) || true
           fi
 
@@ -379,9 +443,10 @@ jobs:
           name: final-reports
           path: |
             playwright-report/
-            allure-report/
             allure-results/
+            allure-report/
             results.json
+            test-results/
           retention-days: 7
           if-no-files-found: ignore
 
@@ -393,7 +458,8 @@ jobs:
         run: |
           echo "======================================="
           echo "Pipeline completed"
-          echo "Playwright execution finished"
+          echo "Playwright execution completed"
+          echo "Failure detection completed"
           echo "AI healing flow evaluated"
           echo "Artifacts uploaded"
           echo "Reports generated"
