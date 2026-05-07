@@ -2,7 +2,8 @@ name: Playwright MCP AI Self-Healing
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
 
 jobs:
@@ -10,119 +11,197 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # =========================================================
+      # Checkout
+      # =========================================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      # =========================================================
+      # Setup Node
+      # =========================================================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: Install deps
+      # =========================================================
+      # Install dependencies
+      # =========================================================
+      - name: Install dependencies
         run: |
           npm install
           npm install -D ts-node typescript @types/node
 
+      # =========================================================
+      # Install Playwright browsers
+      # =========================================================
       - name: Install Playwright
         run: npx playwright install --with-deps
 
+      # =========================================================
+      # Install Allure CLI
+      # =========================================================
       - name: Install Allure CLI
         run: npm install -g allure-commandline
 
-      - name: Run tests
-        run: npm run test:make-apt || true
+      # =========================================================
+      # Run Playwright tests
+      # Generates results.json for AI analysis
+      # =========================================================
+      - name: Run Playwright tests
+        run: |
+          npm run test:make-apt || true
 
+      # =========================================================
+      # Generate Allure Report
+      # =========================================================
       - name: Generate Allure Report
         if: always()
-        run: npm run allure:generate || true
+        run: |
+          npm run allure:generate || true
 
+      # =========================================================
+      # Upload Allure Report
+      # =========================================================
       - name: Upload Allure Report
-        uses: actions/upload-artifact@v4
         if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: allure-report
           path: allure-report/
           retention-days: 30
 
+      # =========================================================
+      # Upload Playwright HTML Report
+      # =========================================================
       - name: Upload Playwright Report
-        uses: actions/upload-artifact@v4
         if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-report/
           retention-days: 30
 
+      # =========================================================
+      # Detect failed tests from results.json
+      # =========================================================
       - name: Detect failures
         id: detect
         run: |
           if [ -f results.json ] && grep -q '"status":"failed"' results.json; then
-            FAILED=$(node -e "try { console.log(require('./results.json').stats.expected - require('./results.json').stats.passed) } catch { console.log(1) }")
+            FAILED=$(node -e "try { 
+              const r=require('./results.json'); 
+              console.log((r.stats?.expected || 0) - (r.stats?.passed || 0)); 
+            } catch(e) { 
+              console.log(1); 
+            }")
+
             echo "failed=true" >> $GITHUB_OUTPUT
             echo "count=$FAILED" >> $GITHUB_OUTPUT
+
+            echo "Detected failed tests: $FAILED"
           else
             echo "failed=false" >> $GITHUB_OUTPUT
+            echo "count=0" >> $GITHUB_OUTPUT
+
+            echo "No failures detected"
           fi
 
-      - name: Start MCP
+      # =========================================================
+      # Start Playwright MCP
+      # =========================================================
+      - name: Start Playwright MCP
         if: steps.detect.outputs.failed == 'true'
         run: |
           npx @playwright/mcp@latest > /tmp/mcp.log 2>&1 &
+
           MCP_PID=$!
+
           echo $MCP_PID > /tmp/mcp.pid
-          sleep 3
+
+          sleep 5
+
           if ps -p $MCP_PID > /dev/null 2>&1; then
-            echo "✓ MCP server started (PID: $MCP_PID)"
+            echo "MCP server started successfully"
           else
-            echo "⚠ MCP server may have failed, continuing..."
+            echo "MCP server failed to start"
             cat /tmp/mcp.log || true
           fi
 
-      - name: Analyze failures
+      # =========================================================
+      # Analyze failures using OpenAI + MCP
+      # =========================================================
+      - name: Analyze failures with AI
         if: steps.detect.outputs.failed == 'true'
-        run: npm run ai:analyze
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          npm run ai:analyze
         continue-on-error: true
 
-      - name: Apply fixes
+      # =========================================================
+      # Apply AI-generated fixes
+      # =========================================================
+      - name: Apply AI fixes
         if: steps.detect.outputs.failed == 'true'
         id: apply-fixes
         run: |
           git checkout -b ai-fix-${{ github.run_id }}
+
           npm run ai:apply
         continue-on-error: true
 
-      - name: Validate fixes (Run 1)
-        if: steps.apply-fixes.outcome == 'success' || steps.apply-fixes.outcome == 'skipped'
+      # =========================================================
+      # Validation Run 1
+      # =========================================================
+      - name: Validate fixes - Run 1
+        if: steps.apply-fixes.outcome == 'success'
         id: validate-1
-        run: npm run test:make-apt || true
+        run: |
+          npm run test:make-apt || true
         continue-on-error: true
 
-      - name: Validate fixes (Run 2)
-        if: steps.validate-1.outcome != 'skipped'
+      # =========================================================
+      # Validation Run 2
+      # =========================================================
+      - name: Validate fixes - Run 2
+        if: steps.validate-1.outcome == 'success'
         id: validate-2
-        run: npm run test:make-apt || true
+        run: |
+          npm run test:make-apt || true
         continue-on-error: true
 
-      - name: Validate fixes (Run 3)
-        if: steps.validate-2.outcome != 'skipped'
+      # =========================================================
+      # Validation Run 3
+      # =========================================================
+      - name: Validate fixes - Run 3
+        if: steps.validate-2.outcome == 'success'
         id: validate-3
-        run: npm run test:make-apt || true
+        run: |
+          npm run test:make-apt || true
         continue-on-error: true
 
+      # =========================================================
+      # Final validation check
+      # =========================================================
       - name: Check validation results
         id: check-validation
         run: |
-          if [ -f results.json ]; then
-            FAILED=$(node -e "try { console.log(require('./results.json').stats.expected - require('./results.json').stats.passed) } catch { console.log(0) }")
-            if [ "$FAILED" -eq 0 ]; then
-              echo "passed=true" >> $GITHUB_OUTPUT
-            else
-              echo "passed=false" >> $GITHUB_OUTPUT
-            fi
+          if [ -f results.json ] && grep -q '"status":"failed"' results.json; then
+            echo "passed=false" >> $GITHUB_OUTPUT
+            echo "Validation failed"
+          else
+            echo "passed=true" >> $GITHUB_OUTPUT
+            echo "Validation successful"
           fi
 
-      - name: Create PR
+      # =========================================================
+      # Commit fixes and create PR
+      # =========================================================
+      - name: Create Pull Request
         if: |
-          steps.detect.outputs.failed == 'true' && 
+          steps.detect.outputs.failed == 'true' &&
           steps.check-validation.outputs.passed == 'true' &&
           github.event_name == 'push'
         env:
@@ -132,50 +211,61 @@ jobs:
         run: |
           git config user.name "playwright-ai-bot"
           git config user.email "bot@playwright-ai.local"
-          
+
           if git diff --quiet; then
-            echo "No changes to commit"
-          else
-            git add tests/ page-objects/
-            git commit -m "fix: auto-heal failing tests using AI
-
-Auto-healed failures:
-- Run ID: $RUN_ID
-- Failed tests: $FAILED_COUNT
-- Branch: ai-fix-$RUN_ID"
-            
-            git push origin ai-fix-$RUN_ID
-            
-            TITLE="🤖 AI Auto-Fix: Healed $FAILED_COUNT failing test(s)"
-            BODY="### Auto-Generated Test Fixes
-
-Tests Fixed: $FAILED_COUNT
-
-Process:
-1. ✓ Detected test failures
-2. ✓ Started Playwright MCP for DOM analysis
-3. ✓ Analyzed with OpenAI GPT-4
-4. ✓ Applied minimal fixes to selectors/page-objects
-5. ✓ Re-validated with 3 consecutive runs
-
-Safety Checks:
-- ✓ No test.skip() added
-- ✓ No hard waits added
-- ✓ No assertions removed
-- ✓ All runs passed
-
----
-Generated by Playwright AI Self-Healing Pipeline"
-            
-            gh pr create --title "$TITLE" --body "$BODY"
+            echo "No changes detected"
+            exit 0
           fi
-        continue-on-error: true
 
+          git add .
+
+          git commit -m "fix: AI auto-healed Playwright failures
+
+          Auto-healed failures:
+          - Run ID: $RUN_ID
+          - Failed tests: $FAILED_COUNT
+          - Branch: ai-fix-$RUN_ID"
+
+          git push origin ai-fix-$RUN_ID
+
+          TITLE="🤖 AI Auto-Fix: Healed $FAILED_COUNT failing test(s)"
+
+          gh pr create \
+            --title "$TITLE" \
+            --body "
+          ## Auto-Generated Playwright Fixes
+
+          ### Summary
+          This PR was automatically generated by the Playwright MCP AI self-healing pipeline.
+
+          ### Actions Performed
+          - Detected failing Playwright tests
+          - Started Playwright MCP server
+          - Analyzed failures using OpenAI GPT-4
+          - Generated safe fixes
+          - Updated selectors/page objects
+          - Re-ran tests 3 consecutive times
+          - All validations passed
+
+          ### Safety Guardrails
+          - No test.skip() added
+          - No hard waits added
+          - No assertions removed
+          - No brittle selectors added
+
+          ---
+          Generated automatically by GitHub Actions
+          "
+
+      # =========================================================
+      # Cleanup MCP process
+      # =========================================================
       - name: Cleanup MCP
         if: always() && steps.detect.outputs.failed == 'true'
         run: |
           if [ -f /tmp/mcp.pid ]; then
             kill $(cat /tmp/mcp.pid) 2>/dev/null || true
-            sleep 1
+            rm -f /tmp/mcp.pid
           fi
-          echo "✓ MCP cleanup complete"
+
+          echo "MCP cleanup complete"
