@@ -18,6 +18,9 @@ jobs:
       CI: true
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RUNNER: ${{ secrets.RUNNER }}
+      TEST_USER_NAME: ${{ secrets.TEST_USER_NAME }}
+      TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
 
     steps:
       ######################################################################
