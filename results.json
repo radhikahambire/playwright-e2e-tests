@@ -1,13 +1,66 @@
-[dotenv@17.2.3] injecting env (5) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+[dotenv@17.2.3] injecting env (5) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
 Hello from config 👋
 ---LOADING TEST ENV SETTINGS---
 [INFO]: Starting the global setup...
 [INFO]: Detecting local runs..
 >> resultsDir: /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/allure-results
 [INFO]: Completed the global setup...
+
+Running 1 test using 1 worker
+
+[1A[2K[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+
+[1A[2KHello from config 👋
+
+[1A[2K---LOADING TEST ENV SETTINGS---
+
+[1A[2K[1/1] [chromium] › tests/functional/make.aptmnt.spec.ts:33:9 › Make Appointment › Should make an appointment with non-default values
+[1A[2K[chromium] › tests/functional/make.aptmnt.spec.ts:33:9 › Make Appointment › Should make an appointment with non-default values
+[34m[INFO]: Launching the web app in test[39m
+
+[1A[2K  1) [chromium] › tests/functional/make.aptmnt.spec.ts:33:9 › Make Appointment › Should make an appointment with non-default values 
+
+    [31mTest timeout of 30000ms exceeded while running "beforeEach" hook.[39m
+
+      3 |
+      4 | test.describe("Make Appointment", () => {
+    > 5 |     test.beforeEach("Login with valid creds", async ({ page }, testInfo) => {
+        |          ^
+      6 |         // 1. Launch URL and assert title and header
+      7 |
+      8 |         // Get the URL from config file
+        at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:5:10
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for getByRole('button', { name: 'Logan' })[22m
+
+
+      23 |         await page.getByLabel("Username").fill(process.env.TEST_USER_NAME);
+      24 |         await page.getByLabel("Password").fill(process.env.TEST_PASSWORD);
+    > 25 |         await page.getByRole("button", { name: "Logan" }).click();
+         |                                                           ^
+      26 |
+      27 |         // Assert a text
+      28 |         await expect(page.locator("h2")).toContainText("Make Appointment");
+        at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:25:59
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/functional-make.aptmnt-Mak-c16ad-ent-with-non-default-values-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/functional-make.aptmnt-Mak-c16ad-ent-with-non-default-values-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/functional-make.aptmnt-Mak-c16ad-ent-with-non-default-values-chromium/error-context.md
+
+
 [INFO]: Starting the global teardown process ...
  >> Local run detected - starting Allure server...
 [INFO]: Completed the global teardown process ...
+[1A[2K  1 failed
+    [chromium] › tests/functional/make.aptmnt.spec.ts:33:9 › Make Appointment › Should make an appointment with non-default values 
 {
   "config": {
     "configFile": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/config/test.playwright.config.ts",
@@ -44,6 +97,9 @@ Hello from config 👋
     ],
     "quiet": false,
     "reporter": [
+      [
+        "line"
+      ],
       [
         "json"
       ]
@@ -90,7 +146,7 @@ Hello from config 👋
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "timedOut",
-                      "duration": 30235,
+                      "duration": 30076,
                       "error": {
                         "message": "\u001b[31mTest timeout of 30000ms exceeded while running \"beforeEach\" hook.\u001b[39m",
                         "stack": "\u001b[31mTest timeout of 30000ms exceeded while running \"beforeEach\" hook.\u001b[39m\n    at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:5:10",
@@ -126,7 +182,7 @@ Hello from config 👋
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-06T12:45:47.662Z",
+                      "startTime": "2026-05-06T12:55:22.392Z",
                       "annotations": [],
                       "attachments": [
                         {
@@ -167,8 +223,8 @@ Hello from config 👋
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-05-06T12:45:47.474Z",
-    "duration": 31050.757999999998,
+    "startTime": "2026-05-06T12:55:22.194Z",
+    "duration": 30441.727,
     "expected": 0,
     "skipped": 0,
     "unexpected": 1,

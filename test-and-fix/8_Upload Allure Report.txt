@@ -1,0 +1,11 @@
+﻿2026-05-06T13:08:03.2966781Z ##[group]Run actions/upload-artifact@v4
+2026-05-06T13:08:03.2967063Z with:
+2026-05-06T13:08:03.2967246Z   name: allure-report
+2026-05-06T13:08:03.2967455Z   path: allure-report/
+2026-05-06T13:08:03.2967650Z   retention-days: 30
+2026-05-06T13:08:03.2967858Z   if-no-files-found: warn
+2026-05-06T13:08:03.2968065Z   compression-level: 6
+2026-05-06T13:08:03.2968264Z   overwrite: false
+2026-05-06T13:08:03.2968467Z   include-hidden-files: false
+2026-05-06T13:08:03.2968701Z ##[endgroup]
+2026-05-06T13:08:03.5032637Z ##[warning]No files were found with the provided path: allure-report/. No artifacts will be uploaded.

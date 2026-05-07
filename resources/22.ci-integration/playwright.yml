@@ -40,14 +40,3 @@ jobs:
                   name: playwright-report
                   path: playwright-report/
                   retention-days: 30
-            - name: Detect failures
-              id: detect
-              run: |
-                # Check if there are any test failures (Playwright uses "unexpected" status)
-                if grep -q '"unexpected":[1-9]' results.json 2>/dev/null; then
-                  echo "failed=true" >> $GITHUB_OUTPUT
-                  echo "✓ Test failures detected - triggering AI fixes"
-                else
-                  echo "failed=false" >> $GITHUB_OUTPUT
-                  echo "✓ All tests passed"
-                fi

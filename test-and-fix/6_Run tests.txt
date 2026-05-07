@@ -1,0 +1,8 @@
+﻿2026-05-06T13:08:01.8206666Z ##[group]Run npm run test:make-apt || true
+2026-05-06T13:08:01.8207005Z [36;1mnpm run test:make-apt || true[0m
+2026-05-06T13:08:01.8220162Z shell: /usr/bin/bash -e {0}
+2026-05-06T13:08:01.8220411Z ##[endgroup]
+2026-05-06T13:08:01.9315518Z 
+2026-05-06T13:08:01.9316560Z > playwright-e2e-tests@1.0.0 test:make-apt
+2026-05-06T13:08:01.9317976Z > npx playwright test --config=config/test.playwright.config.ts tests/functional/make.aptmnt.spec.ts --reporter=line,json > results.json
+2026-05-06T13:08:01.9318849Z 

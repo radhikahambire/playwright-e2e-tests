@@ -1,0 +1,8 @@
+﻿2026-05-06T13:08:03.7259009Z ##[group]Run if grep -q '"status":"failed"' results.json; then
+2026-05-06T13:08:03.7259440Z [36;1mif grep -q '"status":"failed"' results.json; then[0m
+2026-05-06T13:08:03.7259775Z [36;1m  echo "failed=true" >> $GITHUB_OUTPUT[0m
+2026-05-06T13:08:03.7260047Z [36;1melse[0m
+2026-05-06T13:08:03.7260257Z [36;1m  echo "failed=false" >> $GITHUB_OUTPUT[0m
+2026-05-06T13:08:03.7260517Z [36;1mfi[0m
+2026-05-06T13:08:03.7274753Z shell: /usr/bin/bash -e {0}
+2026-05-06T13:08:03.7275036Z ##[endgroup]

@@ -1,0 +1,9 @@
+﻿2026-05-06T13:08:03.1636552Z ##[group]Run npm run allure:generate || true
+2026-05-06T13:08:03.1636898Z [36;1mnpm run allure:generate || true[0m
+2026-05-06T13:08:03.1649721Z shell: /usr/bin/bash -e {0}
+2026-05-06T13:08:03.1649978Z ##[endgroup]
+2026-05-06T13:08:03.2801371Z 
+2026-05-06T13:08:03.2801970Z > playwright-e2e-tests@1.0.0 allure:generate
+2026-05-06T13:08:03.2802454Z > allure generate ./allure-results --clean -o ./allure-report
+2026-05-06T13:08:03.2802733Z 
+2026-05-06T13:08:03.2840296Z sh: 1: allure: not found

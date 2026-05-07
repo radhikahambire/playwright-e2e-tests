@@ -1,0 +1,11 @@
+﻿2026-05-06T13:08:03.5137914Z ##[group]Run actions/upload-artifact@v4
+2026-05-06T13:08:03.5138197Z with:
+2026-05-06T13:08:03.5138383Z   name: playwright-report
+2026-05-06T13:08:03.5138624Z   path: playwright-report/
+2026-05-06T13:08:03.5138849Z   retention-days: 30
+2026-05-06T13:08:03.5139080Z   if-no-files-found: warn
+2026-05-06T13:08:03.5139300Z   compression-level: 6
+2026-05-06T13:08:03.5139497Z   overwrite: false
+2026-05-06T13:08:03.5139699Z   include-hidden-files: false
+2026-05-06T13:08:03.5139925Z ##[endgroup]
+2026-05-06T13:08:03.7157742Z ##[warning]No files were found with the provided path: playwright-report/. No artifacts will be uploaded.

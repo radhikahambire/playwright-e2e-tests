@@ -56,8 +56,7 @@ test.describe("Make Appointment", () => {
         await page.getByRole("button", { name: "Book Appointment" }).click();
 
         // Assertion
-        // INTENTIONAL FAILURE: Changed to trigger failure for CI verification
-        await expect(page.locator("h2")).toContainText("WRONG TEXT - Appointment Failed");
+        await expect(page.locator("h2")).toContainText("Appointment Confirmation");
         await expect(page.getByRole("link", { name: "Go to Homepage" })).toBeVisible();
     });
 

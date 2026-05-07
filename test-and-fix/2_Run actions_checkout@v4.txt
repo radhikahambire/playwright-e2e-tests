@@ -1,0 +1,72 @@
+﻿2026-05-06T13:06:59.1616583Z ##[group]Run actions/checkout@v4
+2026-05-06T13:06:59.1617471Z with:
+2026-05-06T13:06:59.1617978Z   repository: radhikahambire/playwright-e2e-tests
+2026-05-06T13:06:59.1618786Z   token: ***
+2026-05-06T13:06:59.1619197Z   ssh-strict: true
+2026-05-06T13:06:59.1619618Z   ssh-user: git
+2026-05-06T13:06:59.1620047Z   persist-credentials: true
+2026-05-06T13:06:59.1620519Z   clean: true
+2026-05-06T13:06:59.1621094Z   sparse-checkout-cone-mode: true
+2026-05-06T13:06:59.1621605Z   fetch-depth: 1
+2026-05-06T13:06:59.1622019Z   fetch-tags: false
+2026-05-06T13:06:59.1622472Z   show-progress: true
+2026-05-06T13:06:59.1622893Z   lfs: false
+2026-05-06T13:06:59.1623291Z   submodules: false
+2026-05-06T13:06:59.1623712Z   set-safe-directory: true
+2026-05-06T13:06:59.1624400Z ##[endgroup]
+2026-05-06T13:06:59.2707630Z Syncing repository: radhikahambire/playwright-e2e-tests
+2026-05-06T13:06:59.2711208Z ##[group]Getting Git version info
+2026-05-06T13:06:59.2712929Z Working directory is '/home/runner/work/playwright-e2e-tests/playwright-e2e-tests'
+2026-05-06T13:06:59.2715488Z [command]/usr/bin/git version
+2026-05-06T13:06:59.2716426Z git version 2.53.0
+2026-05-06T13:06:59.2731620Z ##[endgroup]
+2026-05-06T13:06:59.2753045Z Temporarily overriding HOME='/home/runner/work/_temp/23b4d6a1-b806-4806-b92e-c100e06f0dab' before making global git config changes
+2026-05-06T13:06:59.2754666Z Adding repository directory to the temporary git global config as a safe directory
+2026-05-06T13:06:59.2757647Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/playwright-e2e-tests/playwright-e2e-tests
+2026-05-06T13:06:59.2786560Z Deleting the contents of '/home/runner/work/playwright-e2e-tests/playwright-e2e-tests'
+2026-05-06T13:06:59.2789922Z ##[group]Initializing the repository
+2026-05-06T13:06:59.2794371Z [command]/usr/bin/git init /home/runner/work/playwright-e2e-tests/playwright-e2e-tests
+2026-05-06T13:06:59.2866491Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-05-06T13:06:59.2867864Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-05-06T13:06:59.2868812Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-05-06T13:06:59.2869536Z hint: call:
+2026-05-06T13:06:59.2869927Z hint:
+2026-05-06T13:06:59.2870423Z hint: 	git config --global init.defaultBranch <name>
+2026-05-06T13:06:59.2871169Z hint:
+2026-05-06T13:06:59.2871741Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-05-06T13:06:59.2872655Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-05-06T13:06:59.2873369Z hint:
+2026-05-06T13:06:59.2873760Z hint: 	git branch -m <name>
+2026-05-06T13:06:59.2874226Z hint:
+2026-05-06T13:06:59.2874821Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-05-06T13:06:59.2875974Z Initialized empty Git repository in /home/runner/work/playwright-e2e-tests/playwright-e2e-tests/.git/
+2026-05-06T13:06:59.2877906Z [command]/usr/bin/git remote add origin https://github.com/radhikahambire/playwright-e2e-tests
+2026-05-06T13:06:59.2902684Z ##[endgroup]
+2026-05-06T13:06:59.2903517Z ##[group]Disabling automatic garbage collection
+2026-05-06T13:06:59.2906229Z [command]/usr/bin/git config --local gc.auto 0
+2026-05-06T13:06:59.2929070Z ##[endgroup]
+2026-05-06T13:06:59.2929820Z ##[group]Setting up auth
+2026-05-06T13:06:59.2935161Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-05-06T13:06:59.2958489Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-05-06T13:06:59.3184039Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-05-06T13:06:59.3208377Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-05-06T13:06:59.3378044Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-05-06T13:06:59.3409052Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-05-06T13:06:59.3579308Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-05-06T13:06:59.3608070Z ##[endgroup]
+2026-05-06T13:06:59.3609560Z ##[group]Fetching the repository
+2026-05-06T13:06:59.3617520Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +13fbed7281e95690f609ab5e97f2f190e1b0a2c5:refs/remotes/origin/main
+2026-05-06T13:07:00.0987885Z From https://github.com/radhikahambire/playwright-e2e-tests
+2026-05-06T13:07:00.0990839Z  * [new ref]         13fbed7281e95690f609ab5e97f2f190e1b0a2c5 -> origin/main
+2026-05-06T13:07:00.1012758Z ##[endgroup]
+2026-05-06T13:07:00.1014852Z ##[group]Determining the checkout info
+2026-05-06T13:07:00.1017194Z ##[endgroup]
+2026-05-06T13:07:00.1019932Z [command]/usr/bin/git sparse-checkout disable
+2026-05-06T13:07:00.1052247Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-05-06T13:07:00.1073881Z ##[group]Checking out the ref
+2026-05-06T13:07:00.1076562Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-05-06T13:07:00.1153214Z Switched to a new branch 'main'
+2026-05-06T13:07:00.1156673Z branch 'main' set up to track 'origin/main'.
+2026-05-06T13:07:00.1163131Z ##[endgroup]
+2026-05-06T13:07:00.1192598Z [command]/usr/bin/git log -1 --format=%H
+2026-05-06T13:07:00.1210384Z 13fbed7281e95690f609ab5e97f2f190e1b0a2c5
