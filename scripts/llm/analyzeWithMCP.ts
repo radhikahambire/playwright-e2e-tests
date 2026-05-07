@@ -9,11 +9,12 @@ interface Failure {
   error: string;
   stack?: string;
   locator?: string;
+  suggestedLocators: string[];
   screenshot?: string;
   trace?: string;
-  pageObjectFiles: string[];
   testCode: string;
   pageObjectCode: Record<string, string>;
+  domSnapshot?: string;
 }
 
 interface Fix {
@@ -41,6 +42,56 @@ function safeReadFile(filePath: string): string {
   }
 }
 
+function extractLocator(errorMessage: string): string | undefined {
+  const patterns = [
+    /getByTestId\(['"`](.*?)['"`]\)/,
+    /getByRole\(['"`](.*?)['"`]\)/,
+    /locator\(['"`](.*?)['"`]\)/,
+    /getByText\(['"`](.*?)['"`]\)/,
+    /waiting for (.*?)$/m,
+  ];
+
+  for (const pattern of patterns) {
+    const match = errorMessage.match(pattern);
+
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return undefined;
+}
+
+function extractSuggestedLocators(
+  testCode: string,
+  pageObjectCode: Record<string, string>
+): string[] {
+  const suggestions = new Set<string>();
+
+  const regexes = [
+    /getByTestId\(['"`](.*?)['"`]\)/g,
+    /getByRole\(['"`](.*?)['"`]\)/g,
+    /getByText\(['"`](.*?)['"`]\)/g,
+  ];
+
+  const combinedCode =
+    testCode +
+    "\n" +
+    Object.values(pageObjectCode).join("\n");
+
+  for (const regex of regexes) {
+    let match;
+
+    while ((match = regex.exec(combinedCode)) !== null) {
+      if (match[1]) {
+        suggestions.add(match[1]);
+      }
+    }
+  }
+
+  return [...suggestions];
+}
+
 function findPageObjectFiles(testCode: string): string[] {
   const matches =
     testCode.match(/from\s+["'](.*pages.*)["']/g) || [];
@@ -59,25 +110,6 @@ function findPageObjectFiles(testCode: string): string[] {
   return pageFiles;
 }
 
-function extractLocator(errorMessage: string): string | undefined {
-  const patterns = [
-    /getByTestId\(['"`](.*?)['"`]\)/,
-    /getByRole\(['"`](.*?)['"`]\)/,
-    /locator\(['"`](.*?)['"`]\)/,
-    /waiting for (.*?)$/m,
-  ];
-
-  for (const pattern of patterns) {
-    const match = errorMessage.match(pattern);
-
-    if (match?.[1]) {
-      return match[1];
-    }
-  }
-
-  return undefined;
-}
-
 function extractAttachments(result: any) {
   let screenshot = "";
   let trace = "";
@@ -93,6 +125,22 @@ function extractAttachments(result: any) {
   }
 
   return { screenshot, trace };
+}
+
+function loadDOMSnapshot(): string {
+  const possibleFiles = [
+    "playwright-report/index.html",
+    "test-results/dom-snapshot.html",
+    "dom-snapshot.html",
+  ];
+
+  for (const file of possibleFiles) {
+    if (fs.existsSync(file)) {
+      return safeReadFile(file).slice(0, 15000);
+    }
+  }
+
+  return "";
 }
 
 function extractFailures(results: any): Failure[] {
@@ -138,6 +186,12 @@ function extractFailures(results: any): Failure[] {
                 result.error?.message || ""
               );
 
+              const suggestedLocators =
+                extractSuggestedLocators(
+                  testCode,
+                  pageObjectCode
+                );
+
               const { screenshot, trace } =
                 extractAttachments(result);
 
@@ -151,11 +205,12 @@ function extractFailures(results: any): Failure[] {
                   "Unknown error",
                 stack: result.error?.stack,
                 locator,
+                suggestedLocators,
                 screenshot,
                 trace,
-                pageObjectFiles,
                 testCode,
                 pageObjectCode,
+                domSnapshot: loadDOMSnapshot(),
               });
             }
           }
@@ -177,10 +232,21 @@ function buildPrompt(
   failures: Failure[]
 ): string {
   return `
-You are a senior Playwright self-healing automation architect.
+You are a senior Playwright self-healing architect.
 
-Your task:
-Analyze failed Playwright tests and generate SAFE fixes.
+Your job:
+Identify ROOT CAUSE of failed Playwright tests.
+
+VERY IMPORTANT:
+You MUST identify when locator drift happened.
+
+When a locator fails:
+1. Analyze existing locator
+2. Analyze available suggested locators
+3. Analyze DOM snapshot
+4. Prefer getByTestId()
+5. Prefer page object fixes
+6. Replace broken locator intelligently
 
 STRICT RULES:
 - Only modify:
@@ -190,24 +256,23 @@ STRICT RULES:
 - NEVER:
   - use test.skip
   - use waitForTimeout
-  - remove assertions
   - use nth-child
   - use querySelector
+  - remove assertions
   - add retries
-  - add sleeps
 
-HEALING STRATEGY:
-1. Prefer page object fixes
-2. Prefer getByTestId()
-3. Fix broken selectors
-4. Fix DOM locator drift
-5. Keep patch minimal
-6. Keep Playwright best practices
+LOCATOR HEALING STRATEGY:
+Priority order:
+1. getByTestId
+2. getByRole
+3. getByLabel
+4. getByText
 
-PATCH RULES:
-- Return unified git diff patches
-- Patch must be directly applicable
-- Do NOT explain outside JSON
+You MUST determine:
+- Which locator broke
+- What new locator exists
+- Which file owns the locator
+- Minimal safe patch
 
 Return ONLY valid JSON:
 
@@ -224,7 +289,7 @@ Return ONLY valid JSON:
   ]
 }
 
-Failure Context:
+Failures:
 ${JSON.stringify(failures, null, 2)}
 `;
 }
@@ -254,7 +319,7 @@ async function callOpenAI(
       body: JSON.stringify({
         model: "gpt-4.1",
 
-        temperature: 0.1,
+        temperature: 0.05,
 
         response_format: {
           type: "json_object",
@@ -264,7 +329,7 @@ async function callOpenAI(
           {
             role: "system",
             content:
-              "You are a strict Playwright self-healing engine. Return only valid JSON.",
+              "You are a strict Playwright self-healing engine specialized in locator healing and DOM drift fixes.",
           },
           {
             role: "user",
@@ -305,22 +370,18 @@ function validateFixes(
     "waitForTimeout",
     "nth-child",
     "querySelector",
-    "retries",
     "setTimeout",
+    "retries",
   ];
 
   response.fixes = response.fixes.filter(
     (fix) => {
-      if (
-        fix.confidence < 0.75
-      ) {
+      if (fix.confidence < 0.75) {
         return false;
       }
 
       for (const pattern of forbiddenPatterns) {
-        if (
-          fix.patch.includes(pattern)
-        ) {
+        if (fix.patch.includes(pattern)) {
           return false;
         }
       }
@@ -342,28 +403,19 @@ function validateFixes(
 async function main() {
   try {
     console.log(
-      "======================================="
-    );
-    console.log(
       "Analyzing Playwright failures..."
     );
-    console.log(
-      "======================================="
-    );
 
-    if (
-      !fs.existsSync("results.json")
-    ) {
+    if (!fs.existsSync("results.json")) {
       throw new Error(
         "results.json not found"
       );
     }
 
-    const raw =
-      fs.readFileSync(
-        "results.json",
-        "utf-8"
-      );
+    const raw = fs.readFileSync(
+      "results.json",
+      "utf-8"
+    );
 
     const results = JSON.parse(raw);
 
@@ -371,10 +423,7 @@ async function main() {
       extractFailures(results);
 
     if (failures.length === 0) {
-      console.log(
-        "No failures detected"
-      );
-
+      console.log("No failures detected");
       process.exit(0);
     }
 
@@ -390,36 +439,19 @@ async function main() {
       prompt
     );
 
-    console.log(
-      "Calling OpenAI..."
-    );
-
     const llmResponse =
       await callOpenAI(prompt);
 
-    const validatedResponse =
+    const validated =
       validateFixes(llmResponse);
 
     fs.writeFileSync(
       "llm-output.json",
-      JSON.stringify(
-        validatedResponse,
-        null,
-        2
-      )
+      JSON.stringify(validated, null, 2)
     );
 
     console.log(
-      "======================================="
-    );
-    console.log(
       "LLM analysis completed"
-    );
-    console.log(
-      `Generated ${validatedResponse.fixes.length} safe fixes`
-    );
-    console.log(
-      "======================================="
     );
   } catch (error) {
     console.error(
