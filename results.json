@@ -1,69 +1,6 @@
-[dotenv@17.2.3] injecting env (5) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
-Hello from config 👋
----LOADING TEST ENV SETTINGS---
-[INFO]: Starting the global setup...
-[INFO]: Detecting local runs..
->> resultsDir: /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/allure-results
-[INFO]: Completed the global setup...
-
-Running 1 test using 1 worker
-
-[1A[2K[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
-
-[1A[2KHello from config 👋
-
-[1A[2K---LOADING TEST ENV SETTINGS---
-
-[1A[2K[1/1] [chromium] › tests/functional/make.aptmnt.spec.ts:33:9 › Make Appointment › Should make an appointment with non-default values
-[1A[2K[chromium] › tests/functional/make.aptmnt.spec.ts:33:9 › Make Appointment › Should make an appointment with non-default values
-[34m[INFO]: Launching the web app in test[39m
-
-[1A[2K  1) [chromium] › tests/functional/make.aptmnt.spec.ts:33:9 › Make Appointment › Should make an appointment with non-default values 
-
-    [31mTest timeout of 30000ms exceeded while running "beforeEach" hook.[39m
-
-      3 |
-      4 | test.describe("Make Appointment", () => {
-    > 5 |     test.beforeEach("Login with valid creds", async ({ page }, testInfo) => {
-        |          ^
-      6 |         // 1. Launch URL and assert title and header
-      7 |
-      8 |         // Get the URL from config file
-        at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:5:10
-
-    Error: locator.click: Test timeout of 30000ms exceeded.
-    Call log:
-    [2m  - waiting for getByRole('button', { name: 'Logan' })[22m
-
-
-      23 |         await page.getByLabel("Username").fill(process.env.TEST_USER_NAME);
-      24 |         await page.getByLabel("Password").fill(process.env.TEST_PASSWORD);
-    > 25 |         await page.getByRole("button", { name: "Logan" }).click();
-         |                                                           ^
-      26 |
-      27 |         // Assert a text
-      28 |         await expect(page.locator("h2")).toContainText("Make Appointment");
-        at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:25:59
-
-    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
-    test-results/functional-make.aptmnt-Mak-c16ad-ent-with-non-default-values-chromium/test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
-    test-results/functional-make.aptmnt-Mak-c16ad-ent-with-non-default-values-chromium/video.webm
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    Error Context: test-results/functional-make.aptmnt-Mak-c16ad-ent-with-non-default-values-chromium/error-context.md
-
-
-[INFO]: Starting the global teardown process ...
- >> Local run detected - starting Allure server...
-[INFO]: Completed the global teardown process ...
-[1A[2K  1 failed
-    [chromium] › tests/functional/make.aptmnt.spec.ts:33:9 › Make Appointment › Should make an appointment with non-default values 
 {
   "config": {
-    "configFile": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/config/test.playwright.config.ts",
+    "configFile": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/playwright.config.ts",
     "rootDir": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests",
     "forbidOnly": false,
     "fullyParallel": false,
@@ -92,16 +29,43 @@ Running 1 test using 1 worker
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
-        "timeout": 30000
+        "timeout": 60000
       }
     ],
     "quiet": false,
     "reporter": [
       [
-        "line"
+        "line",
+        null
       ],
       [
-        "json"
+        "json",
+        {
+          "outputFile": "results.json"
+        }
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report",
+          "open": "never"
+        }
+      ],
+      [
+        "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/node_modules/allure-playwright/dist/cjs/index.js",
+        {
+          "outputFolder": "allure-results",
+          "detail": true,
+          "suiteTitle": true,
+          "environmentInfo": {
+            "environment": "TEST",
+            "appName": "CURA",
+            "release": "Release 1.1",
+            "node_version": "v24.13.1",
+            "os": "darwin",
+            "ci": "false"
+          }
+        }
       ]
     ],
     "reportSlowTests": {
@@ -136,7 +100,7 @@ Running 1 test using 1 worker
               "tags": [],
               "tests": [
                 {
-                  "timeout": 30000,
+                  "timeout": 60000,
                   "annotations": [],
                   "expectedStatus": "passed",
                   "projectId": "chromium",
@@ -145,44 +109,36 @@ Running 1 test using 1 worker
                     {
                       "workerIndex": 0,
                       "parallelIndex": 0,
-                      "status": "timedOut",
-                      "duration": 30076,
+                      "status": "failed",
+                      "duration": 393,
                       "error": {
-                        "message": "\u001b[31mTest timeout of 30000ms exceeded while running \"beforeEach\" hook.\u001b[39m",
-                        "stack": "\u001b[31mTest timeout of 30000ms exceeded while running \"beforeEach\" hook.\u001b[39m\n    at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:5:10",
+                        "message": "Error: page.goto: url: expected string, got undefined",
+                        "stack": "Error: page.goto: url: expected string, got undefined\n    at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:14:20",
                         "location": {
                           "file": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts",
-                          "column": 10,
-                          "line": 5
+                          "column": 20,
+                          "line": 14
                         },
-                        "snippet": "  3 |\n  4 | test.describe(\"Make Appointment\", () => {\n> 5 |     test.beforeEach(\"Login with valid creds\", async ({ page }, testInfo) => {\n    |          ^\n  6 |         // 1. Launch URL and assert title and header\n  7 |\n  8 |         // Get the URL from config file"
+                        "snippet": "\u001b[0m \u001b[90m 12 |\u001b[39m         \u001b[36mawait\u001b[39m log(\u001b[32m\"info\"\u001b[39m\u001b[33m,\u001b[39m \u001b[32m`Launching the web app in ${envConfig.envName}`\u001b[39m)\n \u001b[90m 13 |\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 14 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(envConfig\u001b[33m.\u001b[39mappURL)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                    \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 15 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page)\u001b[33m.\u001b[39mtoHaveTitle(\u001b[32m\"CURA Healthcare Service\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 16 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m\"//h1\"\u001b[39m))\u001b[33m.\u001b[39mtoHaveText(\u001b[32m\"CURA Healthcare Service\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 17 |\u001b[39m\u001b[0m"
                       },
                       "errors": [
                         {
                           "location": {
                             "file": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts",
-                            "column": 10,
-                            "line": 5
+                            "column": 20,
+                            "line": 14
                           },
-                          "message": "\u001b[31mTest timeout of 30000ms exceeded while running \"beforeEach\" hook.\u001b[39m\n\n  3 |\n  4 | test.describe(\"Make Appointment\", () => {\n> 5 |     test.beforeEach(\"Login with valid creds\", async ({ page }, testInfo) => {\n    |          ^\n  6 |         // 1. Launch URL and assert title and header\n  7 |\n  8 |         // Get the URL from config file\n    at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:5:10"
-                        },
-                        {
-                          "location": {
-                            "file": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts",
-                            "column": 59,
-                            "line": 25
-                          },
-                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Logan' })\u001b[22m\n\n\n  23 |         await page.getByLabel(\"Username\").fill(process.env.TEST_USER_NAME);\n  24 |         await page.getByLabel(\"Password\").fill(process.env.TEST_PASSWORD);\n> 25 |         await page.getByRole(\"button\", { name: \"Logan\" }).click();\n     |                                                           ^\n  26 |\n  27 |         // Assert a text\n  28 |         await expect(page.locator(\"h2\")).toContainText(\"Make Appointment\");\n    at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:25:59"
+                          "message": "Error: page.goto: url: expected string, got undefined\n\n\u001b[0m \u001b[90m 12 |\u001b[39m         \u001b[36mawait\u001b[39m log(\u001b[32m\"info\"\u001b[39m\u001b[33m,\u001b[39m \u001b[32m`Launching the web app in ${envConfig.envName}`\u001b[39m)\n \u001b[90m 13 |\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 14 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(envConfig\u001b[33m.\u001b[39mappURL)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                    \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 15 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page)\u001b[33m.\u001b[39mtoHaveTitle(\u001b[32m\"CURA Healthcare Service\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 16 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m\"//h1\"\u001b[39m))\u001b[33m.\u001b[39mtoHaveText(\u001b[32m\"CURA Healthcare Service\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 17 |\u001b[39m\u001b[0m\n\u001b[2m    at /Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts:14:20\u001b[22m"
                         }
                       ],
                       "stdout": [
                         {
-                          "text": "\u001b[34m[INFO]: Launching the web app in test\u001b[39m\n"
+                          "text": "\u001b[34m[INFO]: Launching the web app in undefined\u001b[39m\n"
                         }
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-05-06T12:55:22.392Z",
+                      "startTime": "2026-05-07T04:19:42.315Z",
                       "annotations": [],
                       "attachments": [
                         {
@@ -199,12 +155,17 @@ Running 1 test using 1 worker
                           "name": "error-context",
                           "contentType": "text/markdown",
                           "path": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/test-results/functional-make.aptmnt-Mak-c16ad-ent-with-non-default-values-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/test-results/functional-make.aptmnt-Mak-c16ad-ent-with-non-default-values-chromium/trace.zip"
                         }
                       ],
                       "errorLocation": {
                         "file": "/Users/radhikapravinhambirehendre/Documents/Automation/playwright-e2e-tests/tests/functional/make.aptmnt.spec.ts",
-                        "column": 10,
-                        "line": 5
+                        "column": 20,
+                        "line": 14
                       }
                     }
                   ],
@@ -223,8 +184,8 @@ Running 1 test using 1 worker
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-05-06T12:55:22.194Z",
-    "duration": 30441.727,
+    "startTime": "2026-05-07T04:19:42.106Z",
+    "duration": 2331.283,
     "expected": 0,
     "skipped": 0,
     "unexpected": 1,

@@ -7,7 +7,6 @@
     "test:api": "npx playwright test --config=config/test.playwright.config.ts tests/api/users.api.spec.ts",
     "test:e2e": "npx playwright test --config=config/test.playwright.config.ts tests/e2e/nopcommerce.e2e.spec.ts --headed",
     "dev:make-apt": "npx playwright test --config=config/dev.playwright.config.ts tests/functional/make.aptmnt.spec.ts --headed",
-    "test:make-apt": "npx playwright test --config=config/test.playwright.config.ts tests/functional/make.aptmnt.spec.ts --reporter=line,json > results.json",
     "demo:params": "npx playwright test tests/demo/params.make.aptmnt.spec.ts --headed",
     "demo:parallel": "npx playwright test --grep @demo",
     "demo:global": "npx playwright test tests/functional/login.spec.ts",
@@ -25,9 +24,12 @@
     "login": "npx playwright test tests/functional/login.spec.ts --headed",
     "demo": "npx playwright test tests/demo/mytest.spec.ts --headed",
     "multi-window": "npx playwright test tests/functional/multi.window.spec.ts --headed",
-    "allure:generate": "allure generate ./allure-results --clean -o ./allure-report",
-    "ai:analyze": "ts-node scripts/llm/analyzeWithMCP.ts",
-    "ai:apply": "ts-node scripts/llm/applyPatch.ts"
+    "test:make-apt": "npx playwright test tests/functional/make.aptmnt.spec.ts --headed",
+    "analyze": "tsx scripts/analyzeWithMCP.ts",
+    "apply": "tsx scripts/applyPatch.ts",
+    "validate": "tsx scripts/validateFixes.ts",
+    "create-pr": "tsx scripts/createPR.ts",
+    "allure:generate": "allure generate allure-results --clean -o allure-report"
   },
   "keywords": [
     "playwright",
@@ -40,11 +42,12 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/node": "^24.12.2",
-    "allure-playwright": "^3.4.1",
+    "allure-playwright": "^3.7.2",
     "chalk": "^5.6.2",
     "csv-parse": "^6.1.0",
     "dotenv": "^17.2.3",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.3"
   }
 }

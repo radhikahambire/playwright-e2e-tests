@@ -4,69 +4,115 @@ import { execSync } from "child_process";
 interface Fix {
   file: string;
   patch: string;
-  reason?: string;
-  confidence?: number;
-}
-interface LLMResponse {
-  summary: string;
-  fixes: Fix[];
+  reason: string;
   confidence: number;
 }
 
-const FORBIDDEN_PATTERNS = [
-  /test\.skip\s*\(/,
-  /\.skip\s*\(/,
-  /waitForTimeout/,
-  /page\.waitFor/,
-  /setTimeout\s*\(/,
-  /retries\s*\(/,
-  /assert.*removed/i,
-];
-
-const BRITTLE_PATTERNS = [/nth-child\s*\(/, /nth-of-type\s*\(/, /querySelector\s*\(/];
-
-function isSafe(patch: string, file: string) {
-  const warnings: string[] = [];
-  for (const p of FORBIDDEN_PATTERNS) if (p.test(patch)) return { safe: false, warnings: [`FORBIDDEN: ${p}`] };
-  for (const p of BRITTLE_PATTERNS) if (p.test(patch)) warnings.push(`BRITTLE: ${p}`);
-  if (!file.startsWith("tests/") && !file.startsWith("pages/")) return { safe: false, warnings: ["File outside tests/ or pages/"] };
-  return { safe: true, warnings };
+interface LLMResponse {
+  summary: string;
+  confidence: number;
+  fixes: Fix[];
 }
 
-function main() {
-  try {
-    if (!fs.existsSync("llm-output.json")) throw new Error("llm-output.json not found");
+const FORBIDDEN_PATTERNS = [
+  /test\.skip/i,
+  /waitForTimeout/i,
+  /setTimeout/i,
+  /nth-child/i,
+  /querySelector/i,
+  /retries\(/i,
+  /page\.waitForTimeout/i,
+];
 
-    const data: LLMResponse = JSON.parse(fs.readFileSync("llm-output.json", "utf-8"));
-    console.log(`AI Confidence: ${(data.confidence * 100).toFixed(1)}%`);
-    if (data.confidence < 0.75) {
-      console.log("⚠️ Low confidence; skipping auto-fix");
+function validatePatch(fix: Fix): boolean {
+  if (
+    !fix.file.startsWith("tests/") &&
+    !fix.file.startsWith("pages/")
+  ) {
+    console.log(`Rejected: invalid target ${fix.file}`);
+    return false;
+  }
+
+  for (const pattern of FORBIDDEN_PATTERNS) {
+    if (pattern.test(fix.patch)) {
+      console.log(`Rejected forbidden pattern: ${pattern}`);
+      return false;
+    }
+  }
+
+  if (fix.confidence < 0.75) {
+    console.log(`Rejected low confidence fix: ${fix.file}`);
+    return false;
+  }
+
+  if (!fix.patch.includes("diff --git")) {
+    console.log("Rejected malformed git diff");
+    return false;
+  }
+
+  return true;
+}
+
+function applyPatch(patch: string): boolean {
+  fs.writeFileSync("temp.patch", patch);
+
+  try {
+    execSync("git apply --check temp.patch", {
+      stdio: "pipe",
+    });
+
+    execSync("git apply temp.patch", {
+      stdio: "inherit",
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Patch apply failed:", error);
+    return false;
+  } finally {
+    fs.rmSync("temp.patch", {
+      force: true,
+    });
+  }
+}
+
+async function main() {
+  try {
+    if (!fs.existsSync("llm-output.json")) {
+      throw new Error("llm-output.json not found");
+    }
+
+    const raw = fs.readFileSync("llm-output.json", "utf-8");
+
+    const response: LLMResponse = JSON.parse(raw);
+
+    console.log(`Overall confidence: ${response.confidence}`);
+
+    if (response.confidence < 0.75) {
+      console.log("Skipping low-confidence batch");
       process.exit(0);
     }
 
     let applied = 0;
-    for (const fix of data.fixes) {
-      const { safe, warnings } = isSafe(fix.patch, fix.file);
-      console.log(`\n🧩 File: ${fix.file}`);
-      if (fix.reason) console.log(`   Reason: ${fix.reason}`);
-      if (!safe) {
-        console.log("   ❌ Unsafe fix rejected", warnings);
+
+    for (const fix of response.fixes) {
+      console.log(`Processing ${fix.file}`);
+
+      if (!validatePatch(fix)) {
         continue;
       }
-      warnings.forEach((w) => console.log(`   ⚠️ ${w}`));
-      fs.writeFileSync("temp.patch", fix.patch);
-      try {
-        execSync("git apply temp.patch", { stdio: "pipe" });
-        console.log("   ✅ Patch applied");
+
+      const success = applyPatch(fix.patch);
+
+      if (success) {
         applied++;
-      } catch {
-        console.log("   ❌ Patch failed to apply");
+        console.log(`Applied patch for ${fix.file}`);
       }
     }
-    fs.rmSync("temp.patch", { force: true });
-    console.log(`\nSummary: Applied ${applied}/${data.fixes.length} patches`);
-  } catch (e) {
-    console.error("❌ Error applying patches:", e);
+
+    console.log(`Applied ${applied}/${response.fixes.length} patches`);
+  } catch (error) {
+    console.error(error);
     process.exit(1);
   }
 }

@@ -1,121 +1,326 @@
-name: Playwright Self-Healing Tests
+name: Playwright Self-Healing Pipeline
 
 on:
   push:
     branches:
-      - main
-      - master
+      - "**"
+
   pull_request:
     branches:
-      - main
-      - master
+      - "**"
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: playwright-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  test:
+  test-and-self-heal:
+    name: Playwright Test + AI Self Healing
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+
+    timeout-minutes: 180
+
     env:
+      CI: true
+      NODE_ENV: test
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      TEST_USER_NAME: ${{ secrets.TEST_USER_NAME }}
-      TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      - uses: actions/checkout@v4
+      ######################################################################
+      # Checkout
+      ######################################################################
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up Node.js
+      ######################################################################
+      # Setup Node
+      ######################################################################
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: 20
+          cache: npm
 
-      - name: Install dependencies
-        run: npm install
+      ######################################################################
+      # Install Dependencies
+      ######################################################################
+      - name: Install Dependencies
+        run: npm ci
 
-      - name: Install Playwright browsers
+      ######################################################################
+      # Install Browsers
+      ######################################################################
+      - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
-      - name: Run Playwright tests
-        run: npx playwright test --reporter=line,json,html --output=playwright-report --reporter-options outputFile=results.json
+      ######################################################################
+      # Prepare Directories
+      ######################################################################
+      - name: Prepare Report Directories
+        run: |
+          mkdir -p playwright-report
+          mkdir -p allure-results
+          mkdir -p test-results
+
+      ######################################################################
+      # Initial Test Run
+      ######################################################################
+      - name: Run Playwright Tests
+        id: initial_test
         continue-on-error: true
-
-      - name: Generate Allure report
         run: |
-          npx allure-commandline generate allure-results --clean -o allure-report || true
+          echo "Running Playwright tests..."
 
-      - name: Detect test failures
-        id: detect
+          npx playwright test
+
+      ######################################################################
+      # Upload Playwright Report
+      ######################################################################
+      - name: Upload Playwright HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-html-report
+          path: playwright-report/
+          retention-days: 7
+          if-no-files-found: warn
+
+      ######################################################################
+      # Upload JSON Results
+      ######################################################################
+      - name: Upload JSON Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-json-results
+          path: results.json
+          retention-days: 7
+          if-no-files-found: warn
+
+      ######################################################################
+      # Upload Allure Results
+      ######################################################################
+      - name: Upload Allure Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results/
+          retention-days: 7
+          if-no-files-found: warn
+
+      ######################################################################
+      # Generate Allure Report
+      ######################################################################
+      - name: Generate Allure Report
+        if: always()
         run: |
+          npm install -g allure-commandline --save-dev
+
+          allure generate allure-results \
+            --clean \
+            -o allure-report
+
+      ######################################################################
+      # Upload Allure HTML Report
+      ######################################################################
+      - name: Upload Allure HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-html-report
+          path: allure-report/
+          retention-days: 7
+          if-no-files-found: warn
+
+      ######################################################################
+      # Detect Failures
+      ######################################################################
+      - name: Detect Failed Tests
+        id: detect_failures
+        shell: bash
+        run: |
+          if [ ! -f results.json ]; then
+            echo "results.json missing"
+            echo "failed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           if grep -q '"status":"failed"' results.json; then
+            echo "Failures detected"
             echo "failed=true" >> $GITHUB_OUTPUT
           else
+            echo "No failures detected"
             echo "failed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload Allure report
-        if: always()
-        uses: actions/upload-artifact@v4
+      ######################################################################
+      # Persist AI State
+      ######################################################################
+      - name: Persist AI State
+        if: steps.detect_failures.outputs.failed == 'true'
+        uses: actions/cache@v4
         with:
-          name: allure-report
-          path: allure-report/
-          retention-days: 30
+          path: |
+            llm-output.json
+            llm-prompt.txt
+            mcp.log
+          key: ai-state-${{ github.run_id }}
 
-      - name: Upload Playwright report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30
-
-      - name: Start Playwright MCP
-        if: steps.detect.outputs.failed == 'true'
+      ######################################################################
+      # Start MCP
+      ######################################################################
+      - name: Start Playwright MCP Server
+        if: steps.detect_failures.outputs.failed == 'true'
         run: |
-          nohup npx playwright open --mcp-server & echo $! > mcp.pid
+          echo "Starting MCP server..."
+
+          npx @playwright/mcp@latest > mcp.log 2>&1 &
+
+          echo $! > mcp.pid
+
           sleep 10
 
-      - name: Analyze failures with AI
-        if: steps.detect.outputs.failed == 'true'
-        run: npx ts-node scripts/analyzeWithMCP.ts
+          echo "MCP server started"
 
-      - name: Apply AI fixes
-        if: steps.detect.outputs.failed == 'true'
-        run: npx ts-node scripts/applyPatch.ts
+      ######################################################################
+      # Upload MCP Logs
+      ######################################################################
+      - name: Upload MCP Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-logs
+          path: mcp.log
+          retention-days: 7
+          if-no-files-found: ignore
 
-      - name: Validate fixes - Run 1
-        if: steps.detect.outputs.failed == 'true'
-        run: npx playwright test --reporter=line,json --output=playwright-validation1 --reporter-options outputFile=results1.json
-        continue-on-error: true
-
-      - name: Validate fixes - Run 2
-        if: steps.detect.outputs.failed == 'true'
-        run: npx playwright test --reporter=line,json --output=playwright-validation2 --reporter-options outputFile=results2.json
-        continue-on-error: true
-
-      - name: Validate fixes - Run 3
-        if: steps.detect.outputs.failed == 'true'
-        run: npx playwright test --reporter=line,json --output=playwright-validation3 --reporter-options outputFile=results3.json
-        continue-on-error: true
-
-      - name: Check validation results
-        if: steps.detect.outputs.failed == 'true'
+      ######################################################################
+      # AI Failure Analysis
+      ######################################################################
+      - name: Analyze Failures with OpenAI
+        if: steps.detect_failures.outputs.failed == 'true'
         run: |
-          if grep -q '"status":"failed"' results1.json results2.json results3.json; then
-            echo "Tests still failing after self-heal attempt."
-            exit 0
-          else
-            echo "Healed successfully."
+          echo "Running AI failure analysis..."
+
+          npx tsx scripts/analyzeWithMCP.ts
+
+      ######################################################################
+      # Upload AI Analysis
+      ######################################################################
+      - name: Upload AI Analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-analysis
+          path: |
+            llm-output.json
+            llm-prompt.txt
+          retention-days: 7
+          if-no-files-found: ignore
+
+      ######################################################################
+      # Apply Fixes
+      ######################################################################
+      - name: Apply AI Fixes
+        if: steps.detect_failures.outputs.failed == 'true'
+        run: |
+          echo "Applying AI-generated patches..."
+
+          npx tsx scripts/applyPatch.ts
+
+      ######################################################################
+      # Verify Git Diff
+      ######################################################################
+      - name: Verify Allowed File Changes
+        if: steps.detect_failures.outputs.failed == 'true'
+        shell: bash
+        run: |
+          echo "Checking modified files..."
+
+          git diff --name-only > changed-files.txt
+
+          cat changed-files.txt
+
+          if grep -Ev '^(tests/|pages/)' changed-files.txt; then
+            echo "Unauthorized file modification detected"
+            exit 1
           fi
 
-      - name: Create Pull Request
-        if: steps.detect.outputs.failed == 'true'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          commit-message: "AI Self-Healed Playwright Tests"
-          branch: ai/self-heal-${{ github.run_id }}
-          title: "AI Self-Healed Playwright Tests"
-          body: "Playwright tests healed automatically by AI analysis."
-          base: main
-
-      - name: Stop MCP Server
-        if: steps.detect.outputs.failed == 'true'
+      ######################################################################
+      # Validation Run 1
+      ######################################################################
+      - name: Validate Fixes - Run 1
+        if: steps.detect_failures.outputs.failed == 'true'
         run: |
-          if [ -f mcp.pid ]; then kill $(cat mcp.pid) || true; fi
+          echo "Validation run 1"
+
+          npx playwright test
+
+      ######################################################################
+      # Validation Run 2
+      ######################################################################
+      - name: Validate Fixes - Run 2
+        if: steps.detect_failures.outputs.failed == 'true'
+        run: |
+          echo "Validation run 2"
+
+          npx playwright test
+
+      ######################################################################
+      # Validation Run 3
+      ######################################################################
+      - name: Validate Fixes - Run 3
+        if: steps.detect_failures.outputs.failed == 'true'
+        run: |
+          echo "Validation run 3"
+
+          npx playwright test
+
+      ######################################################################
+      # Validate Final Results
+      ######################################################################
+      - name: Check Validation Results
+        if: steps.detect_failures.outputs.failed == 'true'
+        run: |
+          npx tsx scripts/validateFixes.ts
+
+      ######################################################################
+      # Create Pull Request
+      ######################################################################
+      - name: Create Pull Request
+        if: steps.detect_failures.outputs.failed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx tsx scripts/createPR.ts
+
+      ######################################################################
+      # Stop MCP
+      ######################################################################
+      - name: Stop MCP Server
+        if: always()
+        run: |
+          if [ -f mcp.pid ]; then
+            echo "Stopping MCP server"
+
+            kill $(cat mcp.pid) || true
+          fi
+
+      ######################################################################
+      # Final Status
+      ######################################################################
+      - name: Pipeline Summary
+        if: always()
+        run: |
+          echo "Pipeline completed"
+          echo "Artifacts uploaded"
+          echo "Reports generated"
