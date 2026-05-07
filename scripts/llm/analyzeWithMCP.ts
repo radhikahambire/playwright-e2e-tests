@@ -10,6 +10,7 @@ interface Failure {
   stack?: string;
   locator?: string;
   suggestedLocators: string[];
+  domLocators: string[];
   screenshot?: string;
   trace?: string;
   testCode: string;
@@ -42,7 +43,9 @@ function safeReadFile(filePath: string): string {
   }
 }
 
-function extractLocator(errorMessage: string): string | undefined {
+function extractLocator(
+  errorMessage: string
+): string | undefined {
   const patterns = [
     /getByTestId\(['"`](.*?)['"`]\)/,
     /getByRole\(['"`](.*?)['"`]\)/,
@@ -72,6 +75,7 @@ function extractSuggestedLocators(
     /getByTestId\(['"`](.*?)['"`]\)/g,
     /getByRole\(['"`](.*?)['"`]\)/g,
     /getByText\(['"`](.*?)['"`]\)/g,
+    /getByLabel\(['"`](.*?)['"`]\)/g,
   ];
 
   const combinedCode =
@@ -92,9 +96,74 @@ function extractSuggestedLocators(
   return [...suggestions];
 }
 
-function findPageObjectFiles(testCode: string): string[] {
+function extractDOMLocators(
+  dom: string
+): string[] {
+  const selectors = new Set<string>();
+
+  const testIdRegex =
+    /data-testid=["']([^"']+)["']/g;
+
+  const roleRegex =
+    /role=["']([^"']+)["']/g;
+
+  const ariaRegex =
+    /aria-label=["']([^"']+)["']/g;
+
+  const textRegex =
+    />\s*([A-Za-z0-9 _-]{3,40})\s*</g;
+
+  let match;
+
+  while (
+    (match = testIdRegex.exec(dom)) !== null
+  ) {
+    selectors.add(
+      `getByTestId("${match[1]}")`
+    );
+  }
+
+  while (
+    (match = roleRegex.exec(dom)) !== null
+  ) {
+    selectors.add(
+      `getByRole("${match[1]}")`
+    );
+  }
+
+  while (
+    (match = ariaRegex.exec(dom)) !== null
+  ) {
+    selectors.add(
+      `getByLabel("${match[1]}")`
+    );
+  }
+
+  while (
+    (match = textRegex.exec(dom)) !== null
+  ) {
+    const text = match[1].trim();
+
+    if (
+      text.length > 2 &&
+      text.length < 40
+    ) {
+      selectors.add(
+        `getByText("${text}")`
+      );
+    }
+  }
+
+  return [...selectors].slice(0, 100);
+}
+
+function findPageObjectFiles(
+  testCode: string
+): string[] {
   const matches =
-    testCode.match(/from\s+["'](.*pages.*)["']/g) || [];
+    testCode.match(
+      /from\s+["'](.*pages.*)["']/g
+    ) || [];
 
   const pageFiles: string[] = [];
 
@@ -115,11 +184,18 @@ function extractAttachments(result: any) {
   let trace = "";
 
   for (const attachment of result.attachments || []) {
-    if (attachment.name?.includes("screenshot")) {
-      screenshot = attachment.path || "";
+    if (
+      attachment.name?.includes(
+        "screenshot"
+      )
+    ) {
+      screenshot =
+        attachment.path || "";
     }
 
-    if (attachment.name?.includes("trace")) {
+    if (
+      attachment.name?.includes("trace")
+    ) {
       trace = attachment.path || "";
     }
   }
@@ -136,14 +212,16 @@ function loadDOMSnapshot(): string {
 
   for (const file of possibleFiles) {
     if (fs.existsSync(file)) {
-      return safeReadFile(file).slice(0, 15000);
+      return safeReadFile(file);
     }
   }
 
   return "";
 }
 
-function extractFailures(results: any): Failure[] {
+function extractFailures(
+  results: any
+): Failure[] {
   const failures: Failure[] = [];
 
   const walkSuites = (suites: any[]) => {
@@ -159,7 +237,9 @@ function extractFailures(results: any): Failure[] {
                 safeReadFile(filePath);
 
               const pageObjectFiles =
-                findPageObjectFiles(testCode);
+                findPageObjectFiles(
+                  testCode
+                );
 
               const pageObjectCode: Record<
                 string,
@@ -169,22 +249,31 @@ function extractFailures(results: any): Failure[] {
               for (const poFile of pageObjectFiles) {
                 let resolvedPath = poFile;
 
-                if (!resolvedPath.endsWith(".ts")) {
+                if (
+                  !resolvedPath.endsWith(".ts")
+                ) {
                   resolvedPath += ".ts";
                 }
 
-                const absolutePath = path.resolve(
-                  path.dirname(filePath),
-                  resolvedPath
-                );
+                const absolutePath =
+                  path.resolve(
+                    path.dirname(filePath),
+                    resolvedPath
+                  );
 
-                pageObjectCode[absolutePath] =
-                  safeReadFile(absolutePath);
+                pageObjectCode[
+                  absolutePath
+                ] =
+                  safeReadFile(
+                    absolutePath
+                  );
               }
 
-              const locator = extractLocator(
-                result.error?.message || ""
-              );
+              const locator =
+                extractLocator(
+                  result.error?.message ||
+                    ""
+                );
 
               const suggestedLocators =
                 extractSuggestedLocators(
@@ -192,25 +281,42 @@ function extractFailures(results: any): Failure[] {
                   pageObjectCode
                 );
 
-              const { screenshot, trace } =
-                extractAttachments(result);
+              const {
+                screenshot,
+                trace,
+              } = extractAttachments(
+                result
+              );
+
+              const domSnapshot =
+                loadDOMSnapshot();
+
+              const domLocators =
+                extractDOMLocators(
+                  domSnapshot
+                );
 
               failures.push({
                 testName: test.title,
                 file: filePath,
-                line: test.location?.line,
-                column: test.location?.column,
+                line:
+                  test.location?.line,
+                column:
+                  test.location?.column,
                 error:
-                  result.error?.message ||
+                  result.error
+                    ?.message ||
                   "Unknown error",
-                stack: result.error?.stack,
+                stack:
+                  result.error?.stack,
                 locator,
                 suggestedLocators,
+                domLocators,
                 screenshot,
                 trace,
                 testCode,
                 pageObjectCode,
-                domSnapshot: loadDOMSnapshot(),
+                domSnapshot,
               });
             }
           }
@@ -234,45 +340,48 @@ function buildPrompt(
   return `
 You are a senior Playwright self-healing architect.
 
-Your job:
-Identify ROOT CAUSE of failed Playwright tests.
+PRIMARY TASK:
+Fix broken Playwright locators.
 
-VERY IMPORTANT:
-You MUST identify when locator drift happened.
+CRITICAL:
+You MUST compare:
+1. Broken locator
+2. Existing locator usage
+3. Current DOM locators
 
-When a locator fails:
-1. Analyze existing locator
-2. Analyze available suggested locators
-3. Analyze DOM snapshot
-4. Prefer getByTestId()
-5. Prefer page object fixes
-6. Replace broken locator intelligently
+The provided "domLocators" are extracted from the CURRENT rendered DOM.
 
-STRICT RULES:
-- Only modify:
-  - tests/
-  - pages/
+You MUST identify:
+- Which locator broke
+- Which replacement locator exists
+- Which file owns the locator
+- Minimal safe patch
 
-- NEVER:
-  - use test.skip
-  - use waitForTimeout
-  - use nth-child
-  - use querySelector
-  - remove assertions
-  - add retries
-
-LOCATOR HEALING STRATEGY:
-Priority order:
+LOCATOR PRIORITY:
 1. getByTestId
 2. getByRole
 3. getByLabel
 4. getByText
 
-You MUST determine:
-- Which locator broke
-- What new locator exists
-- Which file owns the locator
-- Minimal safe patch
+STRICT RULES:
+- Prefer page object fixes
+- Only modify:
+  - tests/
+  - pages/
+
+NEVER:
+- use test.skip
+- use waitForTimeout
+- use nth-child
+- use querySelector
+- add retries
+- remove assertions
+- add sleeps
+
+PATCH RULES:
+- Return unified git diff patches
+- Patch must be directly applicable
+- Keep changes minimal
 
 Return ONLY valid JSON:
 
@@ -312,7 +421,8 @@ async function callOpenAI(
       method: "POST",
 
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type":
+          "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
 
@@ -341,17 +451,20 @@ async function callOpenAI(
   );
 
   if (!response.ok) {
-    const text = await response.text();
+    const text =
+      await response.text();
 
     throw new Error(
       `OpenAI API failed: ${response.status} ${text}`
     );
   }
 
-  const data = await response.json();
+  const data =
+    await response.json();
 
   const content =
-    data.choices?.[0]?.message?.content;
+    data.choices?.[0]?.message
+      ?.content;
 
   if (!content) {
     throw new Error(
@@ -374,28 +487,39 @@ function validateFixes(
     "retries",
   ];
 
-  response.fixes = response.fixes.filter(
-    (fix) => {
-      if (fix.confidence < 0.75) {
-        return false;
-      }
-
-      for (const pattern of forbiddenPatterns) {
-        if (fix.patch.includes(pattern)) {
+  response.fixes =
+    response.fixes.filter(
+      (fix) => {
+        if (
+          fix.confidence < 0.75
+        ) {
           return false;
         }
-      }
 
-      if (
-        !fix.file.startsWith("tests/") &&
-        !fix.file.startsWith("pages/")
-      ) {
-        return false;
-      }
+        for (const pattern of forbiddenPatterns) {
+          if (
+            fix.patch.includes(
+              pattern
+            )
+          ) {
+            return false;
+          }
+        }
 
-      return true;
-    }
-  );
+        if (
+          !fix.file.startsWith(
+            "tests/"
+          ) &&
+          !fix.file.startsWith(
+            "pages/"
+          )
+        ) {
+          return false;
+        }
+
+        return true;
+      }
+    );
 
   return response;
 }
@@ -403,27 +527,42 @@ function validateFixes(
 async function main() {
   try {
     console.log(
+      "======================================="
+    );
+
+    console.log(
       "Analyzing Playwright failures..."
     );
 
-    if (!fs.existsSync("results.json")) {
+    console.log(
+      "======================================="
+    );
+
+    if (
+      !fs.existsSync("results.json")
+    ) {
       throw new Error(
         "results.json not found"
       );
     }
 
-    const raw = fs.readFileSync(
-      "results.json",
-      "utf-8"
-    );
+    const raw =
+      fs.readFileSync(
+        "results.json",
+        "utf-8"
+      );
 
-    const results = JSON.parse(raw);
+    const results =
+      JSON.parse(raw);
 
     const failures =
       extractFailures(results);
 
     if (failures.length === 0) {
-      console.log("No failures detected");
+      console.log(
+        "No failures detected"
+      );
+
       process.exit(0);
     }
 
@@ -439,6 +578,10 @@ async function main() {
       prompt
     );
 
+    console.log(
+      "Calling OpenAI..."
+    );
+
     const llmResponse =
       await callOpenAI(prompt);
 
@@ -447,11 +590,27 @@ async function main() {
 
     fs.writeFileSync(
       "llm-output.json",
-      JSON.stringify(validated, null, 2)
+      JSON.stringify(
+        validated,
+        null,
+        2
+      )
+    );
+
+    console.log(
+      "======================================="
     );
 
     console.log(
       "LLM analysis completed"
+    );
+
+    console.log(
+      `Generated ${validated.fixes.length} safe fixes`
+    );
+
+    console.log(
+      "======================================="
     );
   } catch (error) {
     console.error(
