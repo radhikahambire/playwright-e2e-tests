@@ -63,27 +63,37 @@ function replaceLocatorValue(
 ): string {
   const regexes = [
     new RegExp(
-      `(getByTestId\\(["'\`])${escapeRegex(oldLocator)}(["'\`]\\))`,
+      `(getByTestId\\(["'\`])${escapeRegex(
+        oldLocator
+      )}(["'\`]\\))`,
       "g"
     ),
 
     new RegExp(
-      `(getByRole\\(["'\`])${escapeRegex(oldLocator)}(["'\`]\\))`,
+      `(getByRole\\(["'\`])${escapeRegex(
+        oldLocator
+      )}(["'\`]\\))`,
       "g"
     ),
 
     new RegExp(
-      `(getByText\\(["'\`])${escapeRegex(oldLocator)}(["'\`]\\))`,
+      `(getByText\\(["'\`])${escapeRegex(
+        oldLocator
+      )}(["'\`]\\))`,
       "g"
     ),
 
     new RegExp(
-      `(getByLabel\\(["'\`])${escapeRegex(oldLocator)}(["'\`]\\))`,
+      `(getByLabel\\(["'\`])${escapeRegex(
+        oldLocator
+      )}(["'\`]\\))`,
       "g"
     ),
 
     new RegExp(
-      `(locator\\(["'\`])${escapeRegex(oldLocator)}(["'\`]\\))`,
+      `(locator\\(["'\`])${escapeRegex(
+        oldLocator
+      )}(["'\`]\\))`,
       "g"
     ),
   ];
@@ -115,49 +125,85 @@ function applyFix(
     return;
   }
 
-  if (!fs.existsSync(fix.file)) {
-    console.log(
-      `Missing file ${fix.file}`
-    );
+  const pageFiles = fs.existsSync(
+    "pages"
+  )
+    ? fs
+        .readdirSync("pages", {
+          recursive: true,
+        })
+        .filter((f) =>
+          f.toString().endsWith(".ts")
+        )
+        .map((f) => `pages/${f}`)
+    : [];
 
-    return;
+  const testFiles = fs.existsSync(
+    "tests"
+  )
+    ? fs
+        .readdirSync("tests", {
+          recursive: true,
+        })
+        .filter((f) =>
+          f.toString().endsWith(".ts")
+        )
+        .map((f) => `tests/${f}`)
+    : [];
+
+  const candidateFiles = [
+    fix.file,
+    ...pageFiles,
+    ...testFiles,
+  ];
+
+  let applied = false;
+
+  for (const candidate of candidateFiles) {
+    if (!fs.existsSync(candidate)) {
+      continue;
+    }
+
+    const original =
+      fs.readFileSync(
+        candidate,
+        "utf-8"
+      );
+
+    const updated =
+      replaceLocatorValue(
+        original,
+        fix.oldLocator,
+        fix.newLocator
+      );
+
+    if (updated !== original) {
+      fs.copyFileSync(
+        candidate,
+        `${candidate}.bak`
+      );
+
+      fs.writeFileSync(
+        candidate,
+        updated,
+        "utf-8"
+      );
+
+      console.log(
+        `Successfully updated ${candidate}`
+      );
+
+      applied = true;
+
+      break;
+    }
   }
 
-  const original =
-    fs.readFileSync(
-      fix.file,
-      "utf-8"
-    );
-
-  const updated =
-    replaceLocatorValue(
-      original,
-      fix.oldLocator,
-      fix.newLocator
-    );
-
-  if (updated === original) {
+  if (!applied) {
     console.log(
-      `Locator not replaced: ${fix.oldLocator}`
+      `Locator not found anywhere: ${fix.oldLocator}`
     );
-
-    return;
   }
-
-  fs.copyFileSync(
-    fix.file,
-    `${fix.file}.bak`
-  );
-
-  fs.writeFileSync(
-    fix.file,
-    updated,
-    "utf-8"
-  );
-
-  console.log(
-    `Successfully updated ${fix.file}`
-  );
 }
 
 async function main() {
