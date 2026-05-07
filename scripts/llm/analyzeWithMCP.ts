@@ -252,48 +252,58 @@ function extractFailures(
 function buildPrompt(
   failures: Failure[]
 ): string {
+  // Prepare focused failure data without full code
+  const focusedFailures =
+    failures.map((f) => ({
+      testName: f.testName,
+      file: f.file,
+      error: f.error,
+      failedLocator: f.locator,
+      availableLocators:
+        f.availableLocators.slice(
+          0,
+          10
+        ),
+    }));
+
   return `
-You are a Playwright locator healing engine.
+You are a Playwright locator repair engine.
 
-Fix broken Playwright locators.
+Your task: Suggest MINIMAL locator fixes.
 
-IMPORTANT:
-- Return ONLY locator replacements
-- Do NOT rewrite full files
-- Prefer page object fixes
-- Prefer getByTestId
-
-STRICT RULES:
-- Only modify tests/ or pages/
-- Never use:
-  - nth-child
-  - querySelector
-  - waitForTimeout
-  - retries
-  - test.skip
-
-Return ONLY valid JSON:
-
-{
-  "summary": "",
-  "confidence": 0.0,
-  "fixes": [
-    {
-      "file": "",
-      "find": "",
-      "replace": "",
-      "reason": "",
-      "confidence": 0.0
-    }
-  ]
-}
-
-Failures:
+CONTEXT:
 ${JSON.stringify(
-  failures,
+  focusedFailures,
   null,
   2
 )}
+
+INSTRUCTIONS:
+1. Analyze each failure's error message
+2. Suggest ONLY locator replacements (find & replace patterns)
+3. Prefer getByTestId() over CSS selectors
+4. Use availableLocators where possible
+5. Keep suggestions minimal and specific
+
+RULES:
+❌ Never suggest: nth-child, querySelector, waitForTimeout, test.skip
+✓ Only modify: tests/ and pages/ directories
+✓ Return pure JSON only
+
+JSON Format (must be valid):
+{
+  "summary": "Brief summary of fixes",
+  "confidence": 0.8,
+  "fixes": [
+    {
+      "file": "path/to/file.ts",
+      "find": "old_locator_pattern",
+      "replace": "new_locator_pattern",
+      "reason": "Why this fix works",
+      "confidence": 0.85
+    }
+  ]
+}
 `;
 }
 
@@ -321,9 +331,11 @@ async function callOpenAI(
       },
 
       body: JSON.stringify({
-        model: "gpt-4.1",
+        model: "gpt-4-turbo",
 
-        temperature: 0.05,
+        temperature: 0.3,
+
+        max_tokens: 1500,
 
         response_format: {
           type: "json_object",
@@ -333,7 +345,7 @@ async function callOpenAI(
           {
             role: "system",
             content:
-              "You are a deterministic Playwright locator healing engine.",
+              "You are a Playwright locator repair engine. Generate ONLY valid JSON with minimal, specific locator fixes.",
           },
           {
             role: "user",
@@ -371,6 +383,10 @@ async function callOpenAI(
 
 async function main() {
   try {
+    console.log(
+      "🔍 Starting Playwright locator analysis...\n"
+    );
+
     if (
       !fs.existsSync("results.json")
     ) {
@@ -391,9 +407,13 @@ async function main() {
     const failures =
       extractFailures(results);
 
+    console.log(
+      `📊 Found ${failures.length} failed tests\n`
+    );
+
     if (failures.length === 0) {
       console.log(
-        "No failures detected"
+        "✓ No failures to fix"
       );
 
       process.exit(0);
@@ -405,6 +425,10 @@ async function main() {
     fs.writeFileSync(
       "llm-prompt.txt",
       prompt
+    );
+
+    console.log(
+      "🤖 Calling GPT-4-Turbo...\n"
     );
 
     const response =
@@ -420,10 +444,27 @@ async function main() {
     );
 
     console.log(
-      "LLM analysis completed"
+      `✓ Analysis complete\n`
+    );
+
+    console.log(
+      `Summary: ${response.summary}`
+    );
+
+    console.log(
+      `Confidence: ${(response.confidence * 100).toFixed(1)}%`
+    );
+
+    console.log(
+      `Suggested fixes: ${response.fixes.length}`
     );
   } catch (error) {
-    console.error(error);
+    console.error(
+      "❌ Error:",
+      error instanceof Error
+        ? error.message
+        : error
+    );
 
     process.exit(1);
   }
