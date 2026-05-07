@@ -244,6 +244,11 @@ jobs:
           echo "Applying AI fixes..."
           echo "======================================="
 
+          if [ ! -f "llm-output.json" ]; then
+            echo "llm-output.json not found"
+            exit 0
+          fi
+
           set +e
 
           npx tsx scripts/applyPatch.ts
@@ -277,37 +282,86 @@ jobs:
 
             echo "$INVALID_FILES"
 
-          fi
+            exit 1
 
-          exit 0
+          fi
 
       ######################################################################
       # Validation Run
       ######################################################################
       - name: Validation Run
+        id: validation_run
         if: steps.playwright_run.outputs.playwright_exit_code != '0'
-        continue-on-error: true
         run: |
           echo "======================================="
           echo "Running validation tests..."
           echo "======================================="
 
-          npm run test:make-apt || true
+          VALIDATION_EXIT_CODE=0
+
+          npm run test:make-apt || VALIDATION_EXIT_CODE=$?
+
+          echo "validation_exit_code=$VALIDATION_EXIT_CODE" >> $GITHUB_OUTPUT
+
+          echo "Validation exit code: $VALIDATION_EXIT_CODE"
+
+          exit 0
+
+      ######################################################################
+      # Upload Validation Results
+      ######################################################################
+      - name: Upload Validation Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-results
+          path: |
+            results.json
+            playwright-report/
+            allure-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      ######################################################################
+      # Check Validation Status
+      ######################################################################
+      - name: Check Validation Status
+        if: steps.playwright_run.outputs.playwright_exit_code != '0'
+        run: |
+          echo "======================================="
+          echo "Checking validation status..."
+          echo "======================================="
+
+          echo "Validation exit code:"
+          echo "${{ steps.validation_run.outputs.validation_exit_code }}"
+
+          if [ "${{ steps.validation_run.outputs.validation_exit_code }}" != "0" ]; then
+
+            echo "Validation failed after AI fix"
+
+            echo "AI healing unsuccessful"
+
+            exit 1
+
+          fi
+
+          echo "Validation successful"
 
       ######################################################################
       # Create Pull Request
       ######################################################################
       - name: Create Pull Request
-        if: steps.playwright_run.outputs.playwright_exit_code != '0'
-        continue-on-error: true
+        if: |
+          steps.playwright_run.outputs.playwright_exit_code != '0' &&
+          steps.validation_run.outputs.validation_exit_code == '0'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "======================================="
-          echo "Creating PR..."
+          echo "Creating Pull Request..."
           echo "======================================="
 
-          npx tsx scripts/createPR.ts || true
+          npx tsx scripts/createPR.ts
 
       ######################################################################
       # Stop MCP Server
@@ -352,5 +406,6 @@ jobs:
           echo "Pipeline completed"
           echo "Playwright execution completed"
           echo "AI healing flow completed"
+          echo "Validation completed"
           echo "Reports uploaded"
           echo "======================================="
