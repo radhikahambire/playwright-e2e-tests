@@ -1,5 +1,5 @@
 import fs from "fs";
-import { execSync } from "child_process";
+import path from "path";
 
 interface Fix {
   file: string;
@@ -8,111 +8,252 @@ interface Fix {
   confidence: number;
 }
 
-interface LLMResponse {
+interface LLMOutput {
   summary: string;
   confidence: number;
   fixes: Fix[];
 }
 
-const FORBIDDEN_PATTERNS = [
-  /test\.skip/i,
-  /waitForTimeout/i,
-  /setTimeout/i,
-  /nth-child/i,
-  /querySelector/i,
-  /retries\(/i,
-  /page\.waitForTimeout/i,
-];
+function validatePatch(patch: string): boolean {
+  const forbiddenPatterns = [
+    "test.skip",
+    "waitForTimeout",
+    "nth-child",
+    "querySelector",
+    "setTimeout",
+    "retries",
+  ];
 
-function validatePatch(fix: Fix): boolean {
-  if (
-    !fix.file.startsWith("tests/") &&
-    !fix.file.startsWith("pages/")
-  ) {
-    console.log(`Rejected: invalid target ${fix.file}`);
-    return false;
-  }
+  for (const pattern of forbiddenPatterns) {
+    if (patch.includes(pattern)) {
+      console.log(
+        `Rejected unsafe patch: ${pattern}`
+      );
 
-  for (const pattern of FORBIDDEN_PATTERNS) {
-    if (pattern.test(fix.patch)) {
-      console.log(`Rejected forbidden pattern: ${pattern}`);
       return false;
     }
-  }
-
-  if (fix.confidence < 0.75) {
-    console.log(`Rejected low confidence fix: ${fix.file}`);
-    return false;
-  }
-
-  if (!fix.patch.includes("diff --git")) {
-    console.log("Rejected malformed git diff");
-    return false;
   }
 
   return true;
 }
 
-function applyPatch(patch: string): boolean {
-  fs.writeFileSync("temp.patch", patch);
+function extractPatchedContent(
+  patch: string
+): string | null {
+  const lines = patch.split("\n");
 
+  const output: string[] = [];
+
+  for (const line of lines) {
+    if (
+      line.startsWith("---") ||
+      line.startsWith("+++") ||
+      line.startsWith("@@")
+    ) {
+      continue;
+    }
+
+    if (line.startsWith("+")) {
+      output.push(line.slice(1));
+      continue;
+    }
+
+    if (line.startsWith(" ")) {
+      output.push(line.slice(1));
+      continue;
+    }
+  }
+
+  if (output.length === 0) {
+    return null;
+  }
+
+  return output.join("\n");
+}
+
+function backupFile(filePath: string) {
+  const backupPath = `${filePath}.bak`;
+
+  fs.copyFileSync(filePath, backupPath);
+
+  console.log(
+    `Backup created: ${backupPath}`
+  );
+}
+
+function applyFix(fix: Fix) {
   try {
-    execSync("git apply --check temp.patch", {
-      stdio: "pipe",
-    });
+    console.log(
+      "======================================="
+    );
 
-    execSync("git apply temp.patch", {
-      stdio: "inherit",
-    });
+    console.log(
+      `Applying fix to ${fix.file}`
+    );
 
-    return true;
+    console.log(
+      "======================================="
+    );
+
+    if (
+      fix.confidence < 0.75
+    ) {
+      console.log(
+        `Skipped low confidence fix: ${fix.confidence}`
+      );
+
+      return;
+    }
+
+    if (
+      !fix.file.startsWith("tests/") &&
+      !fix.file.startsWith("pages/")
+    ) {
+      console.log(
+        `Skipped unauthorized file: ${fix.file}`
+      );
+
+      return;
+    }
+
+    if (
+      !validatePatch(fix.patch)
+    ) {
+      console.log(
+        "Patch validation failed"
+      );
+
+      return;
+    }
+
+    if (
+      !fs.existsSync(fix.file)
+    ) {
+      console.log(
+        `Target file missing: ${fix.file}`
+      );
+
+      return;
+    }
+
+    const originalContent =
+      fs.readFileSync(
+        fix.file,
+        "utf-8"
+      );
+
+    const patchedContent =
+      extractPatchedContent(
+        fix.patch
+      );
+
+    if (!patchedContent) {
+      console.log(
+        "Unable to extract patched content"
+      );
+
+      return;
+    }
+
+    if (
+      patchedContent.trim() ===
+      originalContent.trim()
+    ) {
+      console.log(
+        "Patch produced no changes"
+      );
+
+      return;
+    }
+
+    backupFile(fix.file);
+
+    fs.writeFileSync(
+      fix.file,
+      patchedContent,
+      "utf-8"
+    );
+
+    console.log(
+      `Successfully updated ${fix.file}`
+    );
   } catch (error) {
-    console.error("Patch apply failed:", error);
-    return false;
-  } finally {
-    fs.rmSync("temp.patch", {
-      force: true,
-    });
+    console.error(
+      `Failed applying fix to ${fix.file}`
+    );
+
+    console.error(error);
   }
 }
 
 async function main() {
   try {
-    if (!fs.existsSync("llm-output.json")) {
-      throw new Error("llm-output.json not found");
+    console.log(
+      "======================================="
+    );
+
+    console.log(
+      "Applying AI-generated patches..."
+    );
+
+    console.log(
+      "======================================="
+    );
+
+    if (
+      !fs.existsSync("llm-output.json")
+    ) {
+      throw new Error(
+        "llm-output.json not found"
+      );
     }
 
-    const raw = fs.readFileSync("llm-output.json", "utf-8");
+    const raw =
+      fs.readFileSync(
+        "llm-output.json",
+        "utf-8"
+      );
 
-    const response: LLMResponse = JSON.parse(raw);
+    const output: LLMOutput =
+      JSON.parse(raw);
 
-    console.log(`Overall confidence: ${response.confidence}`);
+    if (
+      !output.fixes ||
+      output.fixes.length === 0
+    ) {
+      console.log(
+        "No valid fixes found"
+      );
 
-    if (response.confidence < 0.75) {
-      console.log("Skipping low-confidence batch");
       process.exit(0);
     }
 
-    let applied = 0;
+    console.log(
+      `Found ${output.fixes.length} fixes`
+    );
 
-    for (const fix of response.fixes) {
-      console.log(`Processing ${fix.file}`);
-
-      if (!validatePatch(fix)) {
-        continue;
-      }
-
-      const success = applyPatch(fix.patch);
-
-      if (success) {
-        applied++;
-        console.log(`Applied patch for ${fix.file}`);
-      }
+    for (const fix of output.fixes) {
+      applyFix(fix);
     }
 
-    console.log(`Applied ${applied}/${response.fixes.length} patches`);
+    console.log(
+      "======================================="
+    );
+
+    console.log(
+      "Patch application completed"
+    );
+
+    console.log(
+      "======================================="
+    );
   } catch (error) {
+    console.error(
+      "Patch application failed:"
+    );
+
     console.error(error);
+
     process.exit(1);
   }
 }
