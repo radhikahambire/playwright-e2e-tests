@@ -1,45 +1,93 @@
 import fs from "fs";
+import path from "path";
+import {
+  Project,
+  SyntaxKind,
+  CallExpression,
+  Node,
+  ObjectLiteralExpression,
+  PropertyAssignment,
+} from "ts-morph";
 
 interface LocatorFix {
   file: string;
-  oldLocator: string;
-  newLocator: string;
+
+  locatorType:
+    | "getByRole"
+    | "getByText"
+    | "getByLabel"
+    | "getByTestId"
+    | "locator";
+
+  oldValue: string;
+
+  newValue: string;
+
+  role?: string;
+
+  property?: "name" | "text" | "testId";
+
   reason: string;
+
   confidence: number;
 }
 
 interface LLMResponse {
   summary: string;
+
   confidence: number;
+
   fixes: LocatorFix[];
 }
+
+const ALLOWED_ROOTS = [
+  "tests/",
+  "pages/",
+];
+
+const FORBIDDEN_PATTERNS = [
+  "waitForTimeout",
+  "querySelector",
+  "nth-child",
+  "test.skip",
+  "retries",
+];
 
 function isSafeFix(
   fix: LocatorFix
 ): boolean {
-  const forbidden = [
-    "waitForTimeout",
-    "querySelector",
-    "nth-child",
-    "test.skip",
-    "retries",
-  ];
+  if (fix.confidence < 0.55) {
+    console.log(
+      `Rejected low confidence fix: ${fix.confidence}`
+    );
 
-  if (fix.confidence < 0.75) {
     return false;
   }
 
-  if (
-    !fix.file.startsWith("tests/") &&
-    !fix.file.startsWith("pages/")
-  ) {
+  const normalized =
+    fix.file.replace(/\\/g, "/");
+
+  const allowed =
+    ALLOWED_ROOTS.some((root) =>
+      normalized.startsWith(root)
+    );
+
+  if (!allowed) {
+    console.log(
+      `Rejected invalid file path: ${fix.file}`
+    );
+
     return false;
   }
 
-  for (const item of forbidden) {
+  for (const pattern of FORBIDDEN_PATTERNS) {
     if (
-      fix.newLocator.includes(item)
+      fix.newValue.includes(pattern)
     ) {
+      console.log(
+        `Rejected forbidden pattern: ${pattern}`
+      );
+
       return false;
     }
   }
@@ -47,171 +95,435 @@ function isSafeFix(
   return true;
 }
 
-function escapeRegex(
+function backupFile(
+  filePath: string
+) {
+  const backupPath = `${filePath}.bak`;
+
+  if (!fs.existsSync(backupPath)) {
+    fs.copyFileSync(
+      filePath,
+      backupPath
+    );
+  }
+}
+
+function normalizeQuotes(
   value: string
 ): string {
   return value.replace(
-    /[.*+?^${}()|[\]\\]/g,
-    "\\$&"
+    /^["'`](.*)["'`]$/,
+    "$1"
   );
 }
 
-function replaceLocatorValue(
-  content: string,
-  oldLocator: string,
-  newLocator: string
-): string {
-  const regexes = [
-    new RegExp(
-      `(getByTestId\\(["'\`])${escapeRegex(
-        oldLocator
-      )}(["'\`]\\))`,
-      "g"
-    ),
-
-    new RegExp(
-      `(getByRole\\(["'\`])${escapeRegex(
-        oldLocator
-      )}(["'\`]\\))`,
-      "g"
-    ),
-
-    new RegExp(
-      `(getByText\\(["'\`])${escapeRegex(
-        oldLocator
-      )}(["'\`]\\))`,
-      "g"
-    ),
-
-    new RegExp(
-      `(getByLabel\\(["'\`])${escapeRegex(
-        oldLocator
-      )}(["'\`]\\))`,
-      "g"
-    ),
-
-    new RegExp(
-      `(locator\\(["'\`])${escapeRegex(
-        oldLocator
-      )}(["'\`]\\))`,
-      "g"
-    ),
-  ];
-
-  let updated = content;
-
-  for (const regex of regexes) {
-    updated = updated.replace(
-      regex,
-      `$1${newLocator}$2`
+function getPropertyAssignment(
+  objectLiteral: ObjectLiteralExpression,
+  propertyName: string
+): PropertyAssignment | undefined {
+  const prop =
+    objectLiteral.getProperty(
+      propertyName
     );
+
+  if (
+    prop &&
+    Node.isPropertyAssignment(prop)
+  ) {
+    return prop;
   }
 
-  return updated;
+  return undefined;
+}
+
+function patchGetByRole(
+  call: CallExpression,
+  fix: LocatorFix
+): boolean {
+  const args = call.getArguments();
+
+  if (args.length < 2) {
+    return false;
+  }
+
+  const roleArg = args[0];
+  const optionsArg = args[1];
+
+  if (
+    !Node.isStringLiteral(roleArg)
+  ) {
+    return false;
+  }
+
+  if (
+    fix.role &&
+    roleArg.getLiteralText() !==
+      fix.role
+  ) {
+    return false;
+  }
+
+  if (
+    !Node.isObjectLiteralExpression(
+      optionsArg
+    )
+  ) {
+    return false;
+  }
+
+  const nameProp =
+    getPropertyAssignment(
+      optionsArg,
+      "name"
+    );
+
+  if (!nameProp) {
+    return false;
+  }
+
+  const initializer =
+    nameProp.getInitializer();
+
+  if (!initializer) {
+    return false;
+  }
+
+  //
+  // Handle:
+  // name: "Submit"
+  //
+  if (
+    Node.isStringLiteral(
+      initializer
+    )
+  ) {
+    const current =
+      initializer.getLiteralText();
+
+    if (
+      current !== fix.oldValue
+    ) {
+      return false;
+    }
+
+    initializer.replaceWithText(
+      `"${fix.newValue}"`
+    );
+
+    return true;
+  }
+
+  //
+  // Handle:
+  // name: /Submit/i
+  //
+  if (
+    Node.isRegularExpressionLiteral(
+      initializer
+    )
+  ) {
+    const text =
+      initializer.getText();
+
+    if (
+      !text.includes(
+        fix.oldValue
+      )
+    ) {
+      return false;
+    }
+
+    const updated =
+      text.replace(
+        fix.oldValue,
+        fix.newValue
+      );
+
+    initializer.replaceWithText(
+      updated
+    );
+
+    return true;
+  }
+
+  return false;
+}
+
+function patchSimpleLocator(
+  call: CallExpression,
+  fix: LocatorFix
+): boolean {
+  const args = call.getArguments();
+
+  if (args.length === 0) {
+    return false;
+  }
+
+  const firstArg = args[0];
+
+  //
+  // Handle:
+  // getByText("Submit")
+  //
+  if (
+    Node.isStringLiteral(
+      firstArg
+    )
+  ) {
+    const current =
+      firstArg.getLiteralText();
+
+    if (
+      current !== fix.oldValue
+    ) {
+      return false;
+    }
+
+    firstArg.replaceWithText(
+      `"${fix.newValue}"`
+    );
+
+    return true;
+  }
+
+  //
+  // Handle:
+  // getByText(/Submit/i)
+  //
+  if (
+    Node.isRegularExpressionLiteral(
+      firstArg
+    )
+  ) {
+    const current =
+      firstArg.getText();
+
+    if (
+      !current.includes(
+        fix.oldValue
+      )
+    ) {
+      return false;
+    }
+
+    const updated =
+      current.replace(
+        fix.oldValue,
+        fix.newValue
+      );
+
+    firstArg.replaceWithText(
+      updated
+    );
+
+    return true;
+  }
+
+  return false;
+}
+
+function patchLocatorSelector(
+  call: CallExpression,
+  fix: LocatorFix
+): boolean {
+  const args = call.getArguments();
+
+  if (args.length === 0) {
+    return false;
+  }
+
+  const firstArg = args[0];
+
+  if (
+    !Node.isStringLiteral(
+      firstArg
+    )
+  ) {
+    return false;
+  }
+
+  const current =
+    firstArg.getLiteralText();
+
+  if (
+    !current.includes(
+      fix.oldValue
+    )
+  ) {
+    return false;
+  }
+
+  const updated =
+    current.replace(
+      fix.oldValue,
+      fix.newValue
+    );
+
+  firstArg.replaceWithText(
+    `"${updated}"`
+  );
+
+  return true;
+}
+
+function patchFile(
+  filePath: string,
+  fix: LocatorFix
+): boolean {
+  console.log(
+    `Patching file: ${filePath}`
+  );
+
+  const project = new Project({
+    skipAddingFilesFromTsConfig:
+      true,
+  });
+
+  const sourceFile =
+    project.addSourceFileAtPath(
+      filePath
+    );
+
+  let modified = false;
+
+  const calls =
+    sourceFile.getDescendantsOfKind(
+      SyntaxKind.CallExpression
+    );
+
+  for (const call of calls) {
+    const expression =
+      call.getExpression();
+
+    if (
+      !Node.isPropertyAccessExpression(
+        expression
+      )
+    ) {
+      continue;
+    }
+
+    const methodName =
+      expression.getName();
+
+    if (
+      methodName !==
+      fix.locatorType
+    ) {
+      continue;
+    }
+
+    console.log(
+      `Found ${methodName}()`
+    );
+
+    let success = false;
+
+    switch (
+      fix.locatorType
+    ) {
+      case "getByRole":
+        success =
+          patchGetByRole(
+            call,
+            fix
+          );
+        break;
+
+      case "getByText":
+      case "getByLabel":
+      case "getByTestId":
+        success =
+          patchSimpleLocator(
+            call,
+            fix
+          );
+        break;
+
+      case "locator":
+        success =
+          patchLocatorSelector(
+            call,
+            fix
+          );
+        break;
+    }
+
+    if (success) {
+      modified = true;
+
+      console.log(
+        `Successfully updated locator in ${filePath}`
+      );
+
+      break;
+    }
+  }
+
+  if (modified) {
+    backupFile(filePath);
+
+    sourceFile.saveSync();
+  }
+
+  return modified;
 }
 
 function applyFix(
   fix: LocatorFix
 ) {
   console.log(
-    `Applying fix to ${fix.file}`
+    `\nApplying fix`
+  );
+
+  console.log(
+    JSON.stringify(
+      fix,
+      null,
+      2
+    )
   );
 
   if (!isSafeFix(fix)) {
     console.log(
-      "Rejected unsafe fix"
+      `Unsafe fix rejected`
     );
 
     return;
   }
 
-  const pageFiles = fs.existsSync(
-    "pages"
-  )
-    ? fs
-        .readdirSync("pages", {
-          recursive: true,
-        })
-        .filter((f) =>
-          f.toString().endsWith(".ts")
-        )
-        .map((f) => `pages/${f}`)
-    : [];
+  const targetFile =
+    path.normalize(fix.file);
 
-  const testFiles = fs.existsSync(
-    "tests"
-  )
-    ? fs
-        .readdirSync("tests", {
-          recursive: true,
-        })
-        .filter((f) =>
-          f.toString().endsWith(".ts")
-        )
-        .map((f) => `tests/${f}`)
-    : [];
+  if (
+    !fs.existsSync(targetFile)
+  ) {
+    console.log(
+      `File not found: ${targetFile}`
+    );
 
-  const candidateFiles = [
-    fix.file,
-    ...pageFiles,
-    ...testFiles,
-  ];
-
-  let applied = false;
-
-  for (const candidate of candidateFiles) {
-    if (!fs.existsSync(candidate)) {
-      continue;
-    }
-
-    const original =
-      fs.readFileSync(
-        candidate,
-        "utf-8"
-      );
-
-    const updated =
-      replaceLocatorValue(
-        original,
-        fix.oldLocator,
-        fix.newLocator
-      );
-
-    if (updated !== original) {
-      fs.copyFileSync(
-        candidate,
-        `${candidate}.bak`
-      );
-
-      fs.writeFileSync(
-        candidate,
-        updated,
-        "utf-8"
-      );
-
-      console.log(
-        `Successfully updated ${candidate}`
-      );
-
-      applied = true;
-
-      break;
-    }
+    return;
   }
 
-  if (!applied) {
+  const success = patchFile(
+    targetFile,
+    fix
+  );
+
+  if (!success) {
     console.log(
-      `Locator not found anywhere: ${fix.oldLocator}`
+      `No matching locator found`
     );
   }
 }
 
 async function main() {
   try {
+    const llmFile =
+      "llm-output.json";
+
     if (
-      !fs.existsSync(
-        "llm-output.json"
-      )
+      !fs.existsSync(llmFile)
     ) {
       throw new Error(
         "llm-output.json missing"
@@ -220,7 +532,7 @@ async function main() {
 
     const raw =
       fs.readFileSync(
-        "llm-output.json",
+        llmFile,
         "utf-8"
       );
 
@@ -232,20 +544,28 @@ async function main() {
       output.fixes.length === 0
     ) {
       console.log(
-        "No fixes found"
+        "No fixes received"
       );
 
       process.exit(0);
     }
+
+    console.log(
+      `Received ${output.fixes.length} fixes`
+    );
 
     for (const fix of output.fixes) {
       applyFix(fix);
     }
 
     console.log(
-      "Patch application completed"
+      "\nPatch application completed"
     );
   } catch (error) {
+    console.error(
+      "Patch failure:"
+    );
+
     console.error(error);
 
     process.exit(1);
