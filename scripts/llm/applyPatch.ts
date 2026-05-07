@@ -47,6 +47,67 @@ function isSafeFix(
   return true;
 }
 
+function escapeRegex(
+  value: string
+): string {
+  return value.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&"
+  );
+}
+
+function applyLocatorReplacement(
+  content: string,
+  oldLocator: string,
+  newLocator: string
+): string {
+  const patterns = [
+    new RegExp(
+      `getByTestId\\(["'\`]${escapeRegex(
+        oldLocator
+      )}["'\`]\\)`,
+      "g"
+    ),
+
+    new RegExp(
+      `getByRole\\(["'\`]${escapeRegex(
+        oldLocator
+      )}["'\`]\\)`,
+      "g"
+    ),
+
+    new RegExp(
+      `getByText\\(["'\`]${escapeRegex(
+        oldLocator
+      )}["'\`]\\)`,
+      "g"
+    ),
+
+    new RegExp(
+      `locator\\(["'\`]${escapeRegex(
+        oldLocator
+      )}["'\`]\\)`,
+      "g"
+    ),
+  ];
+
+  let updated = content;
+
+  for (const pattern of patterns) {
+    updated = updated.replace(
+      pattern,
+      (match) => {
+        return match.replace(
+          oldLocator,
+          newLocator
+        );
+      }
+    );
+  }
+
+  return updated;
+}
+
 function applyFix(
   fix: LocatorFix
 ) {
@@ -76,25 +137,16 @@ function applyFix(
       "utf-8"
     );
 
-  if (
-    !original.includes(fix.find)
-  ) {
-    console.log(
-      `Find string not found: ${fix.find}`
-    );
-
-    return;
-  }
-
   const updated =
-    original.replace(
+    applyLocatorReplacement(
+      original,
       fix.find,
       fix.replace
     );
 
   if (updated === original) {
     console.log(
-      "No changes applied"
+      `Locator not found: ${fix.find}`
     );
 
     return;
