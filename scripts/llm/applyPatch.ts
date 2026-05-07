@@ -1,35 +1,45 @@
 import fs from "fs";
-import path from "path";
 
-interface Fix {
+interface LocatorFix {
   file: string;
-  patch: string;
+  find: string;
+  replace: string;
   reason: string;
   confidence: number;
 }
 
-interface LLMOutput {
+interface LLMResponse {
   summary: string;
   confidence: number;
-  fixes: Fix[];
+  fixes: LocatorFix[];
 }
 
-function validatePatch(patch: string): boolean {
-  const forbiddenPatterns = [
-    "test.skip",
+function isSafeFix(
+  fix: LocatorFix
+): boolean {
+  const forbidden = [
     "waitForTimeout",
-    "nth-child",
     "querySelector",
-    "setTimeout",
+    "nth-child",
+    "test.skip",
     "retries",
   ];
 
-  for (const pattern of forbiddenPatterns) {
-    if (patch.includes(pattern)) {
-      console.log(
-        `Rejected unsafe patch: ${pattern}`
-      );
+  if (fix.confidence < 0.75) {
+    return false;
+  }
 
+  if (
+    !fix.file.startsWith("tests/") &&
+    !fix.file.startsWith("pages/")
+  ) {
+    return false;
+  }
+
+  for (const item of forbidden) {
+    if (
+      fix.replace.includes(item)
+    ) {
       return false;
     }
   }
@@ -37,174 +47,82 @@ function validatePatch(patch: string): boolean {
   return true;
 }
 
-function extractPatchedContent(
-  patch: string
-): string | null {
-  const lines = patch.split("\n");
-
-  const output: string[] = [];
-
-  for (const line of lines) {
-    if (
-      line.startsWith("---") ||
-      line.startsWith("+++") ||
-      line.startsWith("@@")
-    ) {
-      continue;
-    }
-
-    if (line.startsWith("+")) {
-      output.push(line.slice(1));
-      continue;
-    }
-
-    if (line.startsWith(" ")) {
-      output.push(line.slice(1));
-      continue;
-    }
-  }
-
-  if (output.length === 0) {
-    return null;
-  }
-
-  return output.join("\n");
-}
-
-function backupFile(filePath: string) {
-  const backupPath = `${filePath}.bak`;
-
-  fs.copyFileSync(filePath, backupPath);
-
+function applyFix(
+  fix: LocatorFix
+) {
   console.log(
-    `Backup created: ${backupPath}`
+    `Applying fix to ${fix.file}`
   );
-}
 
-function applyFix(fix: Fix) {
-  try {
+  if (!isSafeFix(fix)) {
     console.log(
-      "======================================="
+      "Rejected unsafe fix"
     );
 
+    return;
+  }
+
+  if (!fs.existsSync(fix.file)) {
     console.log(
-      `Applying fix to ${fix.file}`
+      `Missing file ${fix.file}`
     );
 
-    console.log(
-      "======================================="
-    );
+    return;
+  }
 
-    if (
-      fix.confidence < 0.75
-    ) {
-      console.log(
-        `Skipped low confidence fix: ${fix.confidence}`
-      );
-
-      return;
-    }
-
-    if (
-      !fix.file.startsWith("tests/") &&
-      !fix.file.startsWith("pages/")
-    ) {
-      console.log(
-        `Skipped unauthorized file: ${fix.file}`
-      );
-
-      return;
-    }
-
-    if (
-      !validatePatch(fix.patch)
-    ) {
-      console.log(
-        "Patch validation failed"
-      );
-
-      return;
-    }
-
-    if (
-      !fs.existsSync(fix.file)
-    ) {
-      console.log(
-        `Target file missing: ${fix.file}`
-      );
-
-      return;
-    }
-
-    const originalContent =
-      fs.readFileSync(
-        fix.file,
-        "utf-8"
-      );
-
-    const patchedContent =
-      extractPatchedContent(
-        fix.patch
-      );
-
-    if (!patchedContent) {
-      console.log(
-        "Unable to extract patched content"
-      );
-
-      return;
-    }
-
-    if (
-      patchedContent.trim() ===
-      originalContent.trim()
-    ) {
-      console.log(
-        "Patch produced no changes"
-      );
-
-      return;
-    }
-
-    backupFile(fix.file);
-
-    fs.writeFileSync(
+  const original =
+    fs.readFileSync(
       fix.file,
-      patchedContent,
       "utf-8"
     );
 
+  if (
+    !original.includes(fix.find)
+  ) {
     console.log(
-      `Successfully updated ${fix.file}`
-    );
-  } catch (error) {
-    console.error(
-      `Failed applying fix to ${fix.file}`
+      `Find string not found: ${fix.find}`
     );
 
-    console.error(error);
+    return;
   }
+
+  const updated =
+    original.replace(
+      fix.find,
+      fix.replace
+    );
+
+  if (updated === original) {
+    console.log(
+      "No changes applied"
+    );
+
+    return;
+  }
+
+  fs.copyFileSync(
+    fix.file,
+    `${fix.file}.bak`
+  );
+
+  fs.writeFileSync(
+    fix.file,
+    updated,
+    "utf-8"
+  );
+
+  console.log(
+    `Successfully updated ${fix.file}`
+  );
 }
 
 async function main() {
   try {
-    console.log(
-      "======================================="
-    );
-
-    console.log(
-      "Applying AI-generated patches..."
-    );
-
-    console.log(
-      "======================================="
-    );
-
     if (
       !fs.existsSync("llm-output.json")
     ) {
       throw new Error(
-        "llm-output.json not found"
+        "llm-output.json missing"
       );
     }
 
@@ -214,7 +132,7 @@ async function main() {
         "utf-8"
       );
 
-    const output: LLMOutput =
+    const output: LLMResponse =
       JSON.parse(raw);
 
     if (
@@ -222,36 +140,20 @@ async function main() {
       output.fixes.length === 0
     ) {
       console.log(
-        "No valid fixes found"
+        "No fixes found"
       );
 
       process.exit(0);
     }
-
-    console.log(
-      `Found ${output.fixes.length} fixes`
-    );
 
     for (const fix of output.fixes) {
       applyFix(fix);
     }
 
     console.log(
-      "======================================="
-    );
-
-    console.log(
       "Patch application completed"
     );
-
-    console.log(
-      "======================================="
-    );
   } catch (error) {
-    console.error(
-      "Patch application failed:"
-    );
-
     console.error(error);
 
     process.exit(1);

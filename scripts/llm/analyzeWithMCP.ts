@@ -4,23 +4,17 @@ import path from "path";
 interface Failure {
   testName: string;
   file: string;
-  line?: number;
-  column?: number;
   error: string;
-  stack?: string;
   locator?: string;
-  suggestedLocators: string[];
-  domLocators: string[];
-  screenshot?: string;
-  trace?: string;
+  availableLocators: string[];
   testCode: string;
   pageObjectCode: Record<string, string>;
-  domSnapshot?: string;
 }
 
-interface Fix {
+interface LocatorFix {
   file: string;
-  patch: string;
+  find: string;
+  replace: string;
   reason: string;
   confidence: number;
 }
@@ -28,12 +22,12 @@ interface Fix {
 interface LLMResponse {
   summary: string;
   confidence: number;
-  fixes: Fix[];
+  fixes: LocatorFix[];
 }
 
 function safeReadFile(filePath: string): string {
   try {
-    if (!filePath || !fs.existsSync(filePath)) {
+    if (!fs.existsSync(filePath)) {
       return "";
     }
 
@@ -49,9 +43,8 @@ function extractLocator(
   const patterns = [
     /getByTestId\(['"`](.*?)['"`]\)/,
     /getByRole\(['"`](.*?)['"`]\)/,
-    /locator\(['"`](.*?)['"`]\)/,
     /getByText\(['"`](.*?)['"`]\)/,
-    /waiting for (.*?)$/m,
+    /locator\(['"`](.*?)['"`]\)/,
   ];
 
   for (const pattern of patterns) {
@@ -65,96 +58,43 @@ function extractLocator(
   return undefined;
 }
 
-function extractSuggestedLocators(
-  testCode: string,
-  pageObjectCode: Record<string, string>
-): string[] {
-  const suggestions = new Set<string>();
-
-  const regexes = [
-    /getByTestId\(['"`](.*?)['"`]\)/g,
-    /getByRole\(['"`](.*?)['"`]\)/g,
-    /getByText\(['"`](.*?)['"`]\)/g,
-    /getByLabel\(['"`](.*?)['"`]\)/g,
-  ];
-
-  const combinedCode =
-    testCode +
-    "\n" +
-    Object.values(pageObjectCode).join("\n");
-
-  for (const regex of regexes) {
-    let match;
-
-    while ((match = regex.exec(combinedCode)) !== null) {
-      if (match[1]) {
-        suggestions.add(match[1]);
-      }
-    }
-  }
-
-  return [...suggestions];
-}
-
 function extractDOMLocators(
   dom: string
 ): string[] {
   const selectors = new Set<string>();
 
-  const testIdRegex =
-    /data-testid=["']([^"']+)["']/g;
+  const regexes = [
+    /data-testid=["']([^"']+)["']/g,
+    /aria-label=["']([^"']+)["']/g,
+    /role=["']([^"']+)["']/g,
+  ];
 
-  const roleRegex =
-    /role=["']([^"']+)["']/g;
+  for (const regex of regexes) {
+    let match;
 
-  const ariaRegex =
-    /aria-label=["']([^"']+)["']/g;
-
-  const textRegex =
-    />\s*([A-Za-z0-9 _-]{3,40})\s*</g;
-
-  let match;
-
-  while (
-    (match = testIdRegex.exec(dom)) !== null
-  ) {
-    selectors.add(
-      `getByTestId("${match[1]}")`
-    );
-  }
-
-  while (
-    (match = roleRegex.exec(dom)) !== null
-  ) {
-    selectors.add(
-      `getByRole("${match[1]}")`
-    );
-  }
-
-  while (
-    (match = ariaRegex.exec(dom)) !== null
-  ) {
-    selectors.add(
-      `getByLabel("${match[1]}")`
-    );
-  }
-
-  while (
-    (match = textRegex.exec(dom)) !== null
-  ) {
-    const text = match[1].trim();
-
-    if (
-      text.length > 2 &&
-      text.length < 40
-    ) {
-      selectors.add(
-        `getByText("${text}")`
-      );
+    while ((match = regex.exec(dom)) !== null) {
+      if (match[1]) {
+        selectors.add(match[1]);
+      }
     }
   }
 
-  return [...selectors].slice(0, 100);
+  return [...selectors];
+}
+
+function loadDOMSnapshot(): string {
+  const possibleFiles = [
+    "playwright-report/index.html",
+    "dom-snapshot.html",
+  ];
+
+  for (const file of possibleFiles) {
+    if (fs.existsSync(file)) {
+      return safeReadFile(file);
+    }
+  }
+
+  return "";
 }
 
 function findPageObjectFiles(
@@ -177,46 +117,6 @@ function findPageObjectFiles(
   }
 
   return pageFiles;
-}
-
-function extractAttachments(result: any) {
-  let screenshot = "";
-  let trace = "";
-
-  for (const attachment of result.attachments || []) {
-    if (
-      attachment.name?.includes(
-        "screenshot"
-      )
-    ) {
-      screenshot =
-        attachment.path || "";
-    }
-
-    if (
-      attachment.name?.includes("trace")
-    ) {
-      trace = attachment.path || "";
-    }
-  }
-
-  return { screenshot, trace };
-}
-
-function loadDOMSnapshot(): string {
-  const possibleFiles = [
-    "playwright-report/index.html",
-    "test-results/dom-snapshot.html",
-    "dom-snapshot.html",
-  ];
-
-  for (const file of possibleFiles) {
-    if (fs.existsSync(file)) {
-      return safeReadFile(file);
-    }
-  }
-
-  return "";
 }
 
 function extractFailures(
@@ -275,23 +175,10 @@ function extractFailures(
                     ""
                 );
 
-              const suggestedLocators =
-                extractSuggestedLocators(
-                  testCode,
-                  pageObjectCode
-                );
-
-              const {
-                screenshot,
-                trace,
-              } = extractAttachments(
-                result
-              );
-
               const domSnapshot =
                 loadDOMSnapshot();
 
-              const domLocators =
+              const availableLocators =
                 extractDOMLocators(
                   domSnapshot
                 );
@@ -299,24 +186,14 @@ function extractFailures(
               failures.push({
                 testName: test.title,
                 file: filePath,
-                line:
-                  test.location?.line,
-                column:
-                  test.location?.column,
                 error:
                   result.error
                     ?.message ||
                   "Unknown error",
-                stack:
-                  result.error?.stack,
                 locator,
-                suggestedLocators,
-                domLocators,
-                screenshot,
-                trace,
+                availableLocators,
                 testCode,
                 pageObjectCode,
-                domSnapshot,
               });
             }
           }
@@ -338,50 +215,26 @@ function buildPrompt(
   failures: Failure[]
 ): string {
   return `
-You are a senior Playwright self-healing architect.
+You are a Playwright locator healing engine.
 
-PRIMARY TASK:
+Your task:
 Fix broken Playwright locators.
 
-CRITICAL:
-You MUST compare:
-1. Broken locator
-2. Existing locator usage
-3. Current DOM locators
+IMPORTANT:
+Return ONLY locator replacements.
 
-The provided "domLocators" are extracted from the CURRENT rendered DOM.
-
-You MUST identify:
-- Which locator broke
-- Which replacement locator exists
-- Which file owns the locator
-- Minimal safe patch
-
-LOCATOR PRIORITY:
-1. getByTestId
-2. getByRole
-3. getByLabel
-4. getByText
+DO NOT rewrite full files.
 
 STRICT RULES:
+- Only modify tests/ or pages/
 - Prefer page object fixes
-- Only modify:
-  - tests/
-  - pages/
-
-NEVER:
-- use test.skip
-- use waitForTimeout
-- use nth-child
-- use querySelector
-- add retries
-- remove assertions
-- add sleeps
-
-PATCH RULES:
-- Return unified git diff patches
-- Patch must be directly applicable
-- Keep changes minimal
+- Prefer getByTestId
+- Never use:
+  - nth-child
+  - querySelector
+  - waitForTimeout
+  - retries
+  - test.skip
 
 Return ONLY valid JSON:
 
@@ -391,7 +244,8 @@ Return ONLY valid JSON:
   "fixes": [
     {
       "file": "",
-      "patch": "",
+      "find": "",
+      "replace": "",
       "reason": "",
       "confidence": 0.0
     }
@@ -439,7 +293,7 @@ async function callOpenAI(
           {
             role: "system",
             content:
-              "You are a strict Playwright self-healing engine specialized in locator healing and DOM drift fixes.",
+              "You are a deterministic Playwright locator healing engine.",
           },
           {
             role: "user",
@@ -475,67 +329,10 @@ async function callOpenAI(
   return JSON.parse(content);
 }
 
-function validateFixes(
-  response: LLMResponse
-): LLMResponse {
-  const forbiddenPatterns = [
-    "test.skip",
-    "waitForTimeout",
-    "nth-child",
-    "querySelector",
-    "setTimeout",
-    "retries",
-  ];
-
-  response.fixes =
-    response.fixes.filter(
-      (fix) => {
-        if (
-          fix.confidence < 0.75
-        ) {
-          return false;
-        }
-
-        for (const pattern of forbiddenPatterns) {
-          if (
-            fix.patch.includes(
-              pattern
-            )
-          ) {
-            return false;
-          }
-        }
-
-        if (
-          !fix.file.startsWith(
-            "tests/"
-          ) &&
-          !fix.file.startsWith(
-            "pages/"
-          )
-        ) {
-          return false;
-        }
-
-        return true;
-      }
-    );
-
-  return response;
-}
-
 async function main() {
   try {
     console.log(
-      "======================================="
-    );
-
-    console.log(
       "Analyzing Playwright failures..."
-    );
-
-    console.log(
-      "======================================="
     );
 
     if (
@@ -566,10 +363,6 @@ async function main() {
       process.exit(0);
     }
 
-    console.log(
-      `Detected ${failures.length} failed tests`
-    );
-
     const prompt =
       buildPrompt(failures);
 
@@ -578,45 +371,22 @@ async function main() {
       prompt
     );
 
-    console.log(
-      "Calling OpenAI..."
-    );
-
-    const llmResponse =
+    const response =
       await callOpenAI(prompt);
-
-    const validated =
-      validateFixes(llmResponse);
 
     fs.writeFileSync(
       "llm-output.json",
       JSON.stringify(
-        validated,
+        response,
         null,
         2
       )
     );
 
     console.log(
-      "======================================="
-    );
-
-    console.log(
       "LLM analysis completed"
     );
-
-    console.log(
-      `Generated ${validated.fixes.length} safe fixes`
-    );
-
-    console.log(
-      "======================================="
-    );
   } catch (error) {
-    console.error(
-      "AI analysis failed:"
-    );
-
     console.error(error);
 
     process.exit(1);
