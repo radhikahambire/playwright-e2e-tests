@@ -2,8 +2,8 @@ import fs from "fs";
 
 interface LocatorFix {
   file: string;
-  find: string;
-  replace: string;
+  oldLocator: string;
+  newLocator: string;
   reason: string;
   confidence: number;
 }
@@ -38,7 +38,7 @@ function isSafeFix(
 
   for (const item of forbidden) {
     if (
-      fix.replace.includes(item)
+      fix.newLocator.includes(item)
     ) {
       return false;
     }
@@ -56,52 +56,44 @@ function escapeRegex(
   );
 }
 
-function applyLocatorReplacement(
+function replaceLocatorValue(
   content: string,
   oldLocator: string,
   newLocator: string
 ): string {
-  const patterns = [
+  const regexes = [
     new RegExp(
-      `getByTestId\\(["'\`]${escapeRegex(
-        oldLocator
-      )}["'\`]\\)`,
+      `(getByTestId\\(["'\`])${escapeRegex(oldLocator)}(["'\`]\\))`,
       "g"
     ),
 
     new RegExp(
-      `getByRole\\(["'\`]${escapeRegex(
-        oldLocator
-      )}["'\`]\\)`,
+      `(getByRole\\(["'\`])${escapeRegex(oldLocator)}(["'\`]\\))`,
       "g"
     ),
 
     new RegExp(
-      `getByText\\(["'\`]${escapeRegex(
-        oldLocator
-      )}["'\`]\\)`,
+      `(getByText\\(["'\`])${escapeRegex(oldLocator)}(["'\`]\\))`,
       "g"
     ),
 
     new RegExp(
-      `locator\\(["'\`]${escapeRegex(
-        oldLocator
-      )}["'\`]\\)`,
+      `(getByLabel\\(["'\`])${escapeRegex(oldLocator)}(["'\`]\\))`,
+      "g"
+    ),
+
+    new RegExp(
+      `(locator\\(["'\`])${escapeRegex(oldLocator)}(["'\`]\\))`,
       "g"
     ),
   ];
 
   let updated = content;
 
-  for (const pattern of patterns) {
+  for (const regex of regexes) {
     updated = updated.replace(
-      pattern,
-      (match) => {
-        return match.replace(
-          oldLocator,
-          newLocator
-        );
-      }
+      regex,
+      `$1${newLocator}$2`
     );
   }
 
@@ -138,15 +130,15 @@ function applyFix(
     );
 
   const updated =
-    applyLocatorReplacement(
+    replaceLocatorValue(
       original,
-      fix.find,
-      fix.replace
+      fix.oldLocator,
+      fix.newLocator
     );
 
   if (updated === original) {
     console.log(
-      `Locator not found: ${fix.find}`
+      `Locator not replaced: ${fix.oldLocator}`
     );
 
     return;
